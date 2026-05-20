@@ -6,45 +6,27 @@ use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 /**
- * YCMapper — FIXED VERSION
+ * Mapper YC.
  *
- * ============================================================
- * BUG FIXES (berdasarkan analisis file YC JAI-BA-20260310.xlsx)
- * ============================================================
- *
- * 🔴 BUG A (CRITICAL) — WEEK LABEL SALAH: Kode lama membaca week label dari
- *    TIME CHART MONTH row ($timeChartRow[$col]). Padahal TIME CHART row berisi
- *    NOMOR BULAN (3=Mar, 4=Apr, 5=May, 6=Jun…), BUKAN nomor week.
- *    Bulan 3/4/5 lolos cek (int) >= 1 && <= 5 → salah dilabel "3W","4W","5W".
- *    FIX → Week label diambil dari HEADER ROW ($headerRow[$col]) yang memang
- *          berisi angka 1,2,3,4,5 per bulan dengan benar.
- *
- * 🔴 BUG B (CRITICAL) — HEADER ROW TIDAK DIGUNAKAN untuk week label:
- *    Row 20 Excel (HEADER_ROW, idx 19) sudah menyimpan "1,2,3,4,1,2,3,4…"
- *    (week counter per bulan) tapi sama sekali tidak dipakai di buildDateColumns.
- *    FIX → Tambah $headerRow parameter & gunakan untuk resolving week label.
- *
- * 🟡 BUG C (MEDIUM) — detectRowIndexByLabel labelCol default = 0 (Col A):
- *    Label "TIME CHART MONTH", "ETA", "ETD" ada di Col F (index 5), bukan Col A.
- *    FIX → Panggil dengan labelCol = 5.
- *
- * 🟡 BUG D (MEDIUM) — buildDateColumnsNoFilter punya bug yang sama dengan Bug A.
- *    FIX → Sama: gunakan $headerRow untuk week label.
+ * Catatan format:
+ * - Week label diambil dari HEADER_ROW, bukan TIME_CHART_ROW.
+ * - TIME_CHART_ROW dipakai sebagai anchor bulan.
+ * - Label TIME CHART, ETA, dan ETD berada di kolom F.
  */
 class YCMapper implements SRMapperInterface
 {
-    // Row indices (0-based) — default fallback
+    // Row indices (0-based) - default fallback
     private const SR_NO_ROW         = 6;
     private const JPN_FACT_ROW      = 8;
     private const OVERSEAS_ROW      = 9;
     private const PORT_ROW          = 10;
     private const CUST_GROUP_ROW    = 11;
     private const CUST_ROW          = 12;
-    private const TIME_CHART_ROW    = 14;  // Row 15 Excel — anchor bulan
+    private const TIME_CHART_ROW    = 14;  // Row 15 Excel - anchor bulan
     private const CUST_ETA_FROM_ROW = 15;  // Row 16 Excel
     private const ETA_ROW           = 16;  // Row 17 Excel
     private const ETD_ROW           = 17;  // Row 18 Excel
-    private const HEADER_ROW        = 19;  // Row 20 Excel — kolom header + week numbers
+    private const HEADER_ROW        = 19;  // Row 20 Excel - kolom header + week numbers
     private const DATA_START_ROW    = 20;  // Row 21 Excel
 
     // Kolom indices (0-based)
@@ -53,13 +35,13 @@ class YCMapper implements SRMapperInterface
     private const COL_JIG        = 2;
     private const COL_NO         = 3;
     private const COL_PART       = 4;
-    private const COL_HIST_START = 5;   // F — awal kolom historis (week 4 prev month)
-    private const COL_HIST_END   = 9;   // J — akhir kolom historis (week 8 prev month)
-    private const COL_LIVE_START = 10;  // K — awal kolom live (week 1 bulan TIME CHART pertama)
+    private const COL_HIST_START = 5;   // F - awal kolom historis (week 4 prev month)
+    private const COL_HIST_END   = 9;   // J - akhir kolom historis (week 8 prev month)
+    private const COL_LIVE_START = 10;  // K - awal kolom live (week 1 bulan TIME CHART pertama)
     private const COL_ROUTE      = 34;
 
-    // Label col untuk deteksi row — semua label YC ada di Col F (index 5)
-    private const LABEL_COL      = 5;   // ← FIX BUG C: was 0 (Col A)
+    // Label row YC berada di Col F (index 5).
+    private const LABEL_COL      = 5;
 
     private const SKIP_WORDS = ['total', 'subtotal', 'grand total'];
 
@@ -289,7 +271,7 @@ class YCMapper implements SRMapperInterface
                 $result[] = [
                     'customer'      => 'YC',
                     'source_file'   => null,
-                    'part_number'   => $colE,
+                    'assy_number'   => $colE,
                     'qty'           => $qty,
                     'delivery_date' => $info['eta']->toDateString(),
                     'eta'           => $info['eta']->toDateString(),

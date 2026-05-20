@@ -21,6 +21,7 @@ export default function Index({ customers, flash }) {
     const [searchTerm, setSearchTerm] = useState("");
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
     const [filterOpen, setFilterOpen] = useState(false);
+    const [deleteCustomer, setDeleteCustomer] = useState(null);
 
     useEffect(() => {
         if (flash?.success) {
@@ -30,10 +31,13 @@ export default function Index({ customers, flash }) {
         }
     }, [flash]);
 
-    const handleDelete = (id, name) => {
-        if (confirm(`Delete customer "${name}"?`)) {
-            router.delete(`/customers/${id}`);
-        }
+    const handleDelete = (customer) => {
+        setDeleteCustomer(customer);
+    };
+
+    const confirmDelete = () => {
+        router.delete(`/customers/${deleteCustomer.id}`);
+        setDeleteCustomer(null);
     };
 
     const handleSort = (key) => {
@@ -57,8 +61,7 @@ export default function Index({ customers, flash }) {
 
         let filtered = customers.filter(c =>
             (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (c.code || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (c.keterangan || '').toLowerCase().includes(searchTerm.toLowerCase())
+            (c.code || '').toLowerCase().includes(searchTerm.toLowerCase())
         );
 
         if (sortConfig.key) {
@@ -171,8 +174,7 @@ export default function Index({ customers, flash }) {
                                 <div className="flex flex-wrap gap-2">
                                     {[
                                         { key: 'name', label: 'Name' },
-                                        { key: 'code', label: 'Code' },
-                                        { key: 'keterangan', label: 'Description' }
+                                        { key: 'code', label: 'Code' }
                                     ].map((opt) => (
                                         <button
                                             key={opt.key}
@@ -222,15 +224,6 @@ export default function Index({ customers, flash }) {
                                             {getSortIcon('code')}
                                         </div>
                                     </th>
-                                    <th 
-                                        className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider cursor-pointer hover:text-[#1D6F42] border-r border-gray-200"
-                                        onClick={() => handleSort('keterangan')}
-                                    >
-                                        <div className="flex items-center gap-1.5">
-                                            Description
-                                            {getSortIcon('keterangan')}
-                                        </div>
-                                    </th>
                                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-44">
                                         Actions
                                     </th>
@@ -255,9 +248,6 @@ export default function Index({ customers, flash }) {
                                                     <span className="text-sm text-gray-300">—</span>
                                                 )}
                                             </td>
-                                            <td className="px-6 py-4 text-sm text-gray-600">
-                                                {customer.keterangan?.trim() ? customer.keterangan : '—'}
-                                            </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="flex items-center gap-2">
                                                     <Link
@@ -268,7 +258,7 @@ export default function Index({ customers, flash }) {
                                                         Edit
                                                     </Link>
                                                     <button
-                                                        onClick={() => handleDelete(customer.id, customer.name)}
+                                                        onClick={() => setDeleteCustomer(customer)}
                                                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-red-600 bg-white border border-red-200 hover:bg-red-50 hover:border-red-300 transition-colors"
                                                     >
                                                         <TrashIcon className="w-4 h-4" />
@@ -280,7 +270,7 @@ export default function Index({ customers, flash }) {
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan={5} className="py-16 text-center">
+                                        <td colSpan={4} className="py-16 text-center">
                                             <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-2xl flex items-center justify-center border-2 border-dashed border-gray-200">
                                                 <UserGroupIcon className="w-8 h-8 text-gray-400" />
                                             </div>
@@ -328,6 +318,34 @@ export default function Index({ customers, flash }) {
                     animation: slideDown 0.25s ease-out;
                 }
             `}</style>
+
+            {/* Delete Modal */}
+            {deleteCustomer && (
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+                    <div className="bg-white p-6 rounded-xl w-96 shadow-xl">
+                        <h3 className="text-lg font-semibold mb-2 text-gray-900">
+                            Delete Customer
+                        </h3>
+                        <p className="text-sm text-gray-600 mb-6">
+                            Are you sure you want to delete <b>{deleteCustomer.name}</b>?
+                        </p>
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => setDeleteCustomer(null)}
+                                className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={confirmDelete}
+                                className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </AdminLayout>
     );
 }

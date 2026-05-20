@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
+use App\Services\Variance\AnalyticsCacheService;
 use Illuminate\Database\Eloquent\Model;
-use App\Models\UploadBatch;
 
 class SR extends Model
 {
@@ -11,6 +11,7 @@ class SR extends Model
 
     protected $fillable = [
         'customer',
+        'sr_number',
         'carline_id',
         'assy_id',
         'upload_batch_id',
@@ -18,7 +19,7 @@ class SR extends Model
         'upload_batch',
         'sheet_index',
         'sheet_name',
-        'part_number',
+        'assy_number',
         'qty',
         'total',
         'delivery_date',
@@ -40,6 +41,12 @@ class SR extends Model
     protected $casts = [
         'extra' => 'array',
     ];
+
+    protected static function booted(): void
+    {
+        static::updated(fn () => app(AnalyticsCacheService::class)->invalidate());
+        static::deleted(fn () => app(AnalyticsCacheService::class)->invalidate());
+    }
 
     // Relasi
     public function carline()

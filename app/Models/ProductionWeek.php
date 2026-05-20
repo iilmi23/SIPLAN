@@ -17,12 +17,15 @@ class ProductionWeek extends Model
         'week_no',
         'week_start',
         'end_date',
+        'working_days',
+        'total_working_days',
         'num_weeks',
     ];
 
     protected $casts = [
         'week_start' => 'date',
         'end_date' => 'date',
+        'working_days' => 'array',
     ];
 
     // ─── Relasi ───────────────────────────────────────────────
@@ -33,8 +36,14 @@ class ProductionWeek extends Model
 
     public function sppRecords()
     {
-        // FIX: nama class harus Spp bukan SPP (PSR-4)
-        return $this->hasMany(Spp::class, 'week_id');
+        $relation = $this->hasMany(SPP::class, 'year', 'year')
+            ->where('month_label', strtoupper(substr((string) $this->month_name, 0, 3)));
+
+        if ($this->customer_id) {
+            $relation->where('customer_id', $this->customer_id);
+        }
+
+        return $relation;
     }
 
     public function etdMappings()
@@ -45,20 +54,28 @@ class ProductionWeek extends Model
     // ─── Helper ───────────────────────────────────────────────
     /**
      * Cek apakah tanggal ETD masuk ke week ini.
-     * Patokan: ETD >= week_start minggu ini DAN < week_start minggu berikutnya
+     * Patokan: ETD >= week_start minggu ini DAN < week_start minggu berikutnya.
      */
     public function containsDate($date)
     {
+        $date = Carbon::parse($date)->startOfDay();
+        $weekStart = $this->week_start->copy()->startOfDay();
+
         $nextWeek = ProductionWeek::where('year', $this->year)
             ->where('week_start', '>', $this->week_start)
+            ->when(
+                $this->customer_id !== null,
+                fn ($query) => $query->where('customer_id', $this->customer_id),
+                fn ($query) => $query->whereNull('customer_id')
+            )
             ->orderBy('week_start')
             ->first();
 
-        $endDate = $nextWeek
-            ? $nextWeek->week_start
-            : $this->week_start->copy()->addDays(7);
+        $endBoundary = $nextWeek
+            ? $nextWeek->week_start->copy()->startOfDay()
+            : $this->end_date->copy()->addDay()->startOfDay();
 
-        return $date >= $this->week_start && $date < $endDate;
+        return $date->gte($weekStart) && $date->lt($endBoundary);
     }
 
     /**

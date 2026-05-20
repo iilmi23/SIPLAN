@@ -527,7 +527,7 @@ function PreviewTable({ headers, rows, showPreview }) {
             <div className="flex flex-col gap-3 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h2 className="text-sm font-semibold text-gray-900">Data Preview</h2>
-                    <p className="mt-0.5 text-xs text-gray-500">Showing first {rows.length} rows from the selected sheet.</p>
+                    <p className="mt-0.5 text-xs text-gray-500">Showing all {rows.length} rows from the selected sheet.</p>
                 </div>
                 <span className="w-fit rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">
                     {rows.length} rows displayed

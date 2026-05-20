@@ -76,9 +76,13 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('/summary/{id}', [SummaryController::class, 'destroy'])->name('summary.destroy');
 
         Route::get('/variance', [VarianceController::class, 'index'])->name('variance.index');
+        Route::get('/variance/export', [VarianceController::class, 'export'])->name('variance.export');
 
         Route::get('/spp', [SPPController::class, 'index'])->name('spp');
+        Route::get('/spp/preview', [SPPController::class, 'previewCombined'])->name('spp.previewCombined');
+        Route::post('/spp/preview', [SPPController::class, 'storeCombined'])->name('spp.storeCombined');
         Route::get('/spp/preview/{id}', [SPPController::class, 'preview'])->name('spp.preview');
+        Route::post('/spp/preview/{id}', [SPPController::class, 'store'])->name('spp.store');
         Route::get('/spp/{period}', [SPPController::class, 'show'])->name('spp.show');
 
         Route::get('/history', function () {
@@ -152,7 +156,7 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/debug/sr-latest', function () {
                 $latestUploads = \App\Models\SR::orderBy('created_at', 'desc')
                     ->limit(10)
-                    ->get(['id', 'customer', 'source_file', 'upload_batch', 'part_number', 'qty', 'created_at']);
+                    ->get(['id', 'customer', 'source_file', 'upload_batch', 'assy_number', 'qty', 'created_at']);
 
                 $totalByBatch = \App\Models\SR::selectRaw('upload_batch, COUNT(*) as count, SUM(qty) as total_qty, MAX(created_at) as latest_upload')
                     ->groupBy('upload_batch')

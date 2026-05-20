@@ -10,7 +10,7 @@ class Assy extends Model
 
     protected $fillable = [
         'carline_id',
-        'part_number',
+        'assy_number',
         'assy_code',
         'level',
         'type',
@@ -32,13 +32,12 @@ class Assy extends Model
 
     public function spp()
     {
-        return $this->hasMany(SPP::class);
+        return $this->hasMany(SPP::class, 'assy_id');
     }
-
 
     // Helper: full identifier
     public function getFullNameAttribute()
     {
-        return $this->part_number . ' - ' . $this->assy_code;
+        return $this->assy_number . ' - ' . $this->assy_code;
     }
 }

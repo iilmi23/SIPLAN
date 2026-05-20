@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('customer');
             $table->string('source_file')->nullable();
             $table->string('sheet_name')->nullable();
-            $table->string('part_number');
+            $table->string('assy_number');
             $table->string('model')->nullable();
             $table->string('family')->nullable();
             $table->string('order_type')->nullable();
@@ -32,9 +32,9 @@ return new class extends Migration
             $table->timestamps();
 
             $table->index(['customer', 'month', 'week']);
-            $table->index(['customer', 'part_number']);
+            $table->index(['customer', 'assy_number']);
             $table->index(['customer_id', 'month', 'week']);
-            $table->index(['upload_batch_id', 'part_number'], 'summaries_batch_part_index');
+            $table->index(['upload_batch_id', 'assy_number'], 'summaries_batch_assy_index');
             $table->index(['assy_id', 'month', 'week']);
         });
     }

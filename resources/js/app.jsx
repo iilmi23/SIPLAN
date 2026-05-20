@@ -3,6 +3,7 @@ import './bootstrap';
 import { createInertiaApp } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
+import { ThemeProvider } from './contexts/ThemeContext';
 
 const appName = import.meta.env.VITE_APP_NAME || 'SIPLAN';
 
@@ -17,7 +18,9 @@ createInertiaApp({
         const root = createRoot(el);
 
         root.render(
-            <App {...props} />
+            <ThemeProvider>
+                <App {...props} />
+            </ThemeProvider>
         );
     },
     progress: {
@@ -107,7 +110,10 @@ const ROUTES = {
     'summary.destroy': '/summary/{id}',
     'variance.index': '/variance',
     spp: '/spp',
+    'spp.previewCombined': '/spp/preview',
+    'spp.storeCombined': '/spp/preview',
     'spp.preview': '/spp/preview/{id}',
+    'spp.store': '/spp/preview/{id}',
     'spp.show': '/spp/{period}',
     history: '/history',
     settings: '/settings',

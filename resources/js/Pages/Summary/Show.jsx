@@ -83,44 +83,87 @@ const calculateYNAWeek = (etd) => {
 };
 
 const displayWeek = (item, isYNAFormat) => isYNAFormat ? calculateYNAWeek(item.etd) : normalizeWeek(item.week);
+const monthKeyFromDate = (value) => value ? String(value).slice(0, 7) : "unknown";
+const ynaMonthKey = (item) => monthKeyFromDate(item.etd || item.eta || item.month);
+const ynaPeriodValue = (qty, period, periods) => {
+    if (period.isPad) return 0;
+    if (!period.isTotal) return qty[period.key] || 0;
+
+    return periods
+        .filter((item) => item.month === period.month && !item.isPad && !item.isTotal)
+        .reduce((sum, item) => sum + (qty[item.key] || 0), 0);
+};
 
 // ─── Excel-Like Pivot Preview ─────────────────────────────────────────────────
 function PivotPreview({ data, customer }) {
     // Determine format based on customer
     const isYNAFormat = customer?.toUpperCase() === 'YNA';
-    
+    const periodsPerMonth = customer?.toUpperCase() === 'SAI' ? 15 : 5;
     // Build sorted unique periods. YNA follows SR columns, so ETD is the key.
     const periods = useMemo(() => {
-        const map = {};
+        const byMonth = {};
         data.forEach((item) => {
-            const key = isYNAFormat ? ynaPeriodKey(item.etd) : periodKey(item.etd, item.eta, item.week);
-            if (!map[key]) {
-                map[key] = {
+            const month = ynaMonthKey(item);
+            const key = ynaPeriodKey(item.etd);
+            byMonth[month] = byMonth[month] || {};
+            if (!byMonth[month][key]) {
+                byMonth[month][key] = {
                     key,
+                    month,
                     etd: item.etd,
                     eta: isYNAFormat && hasFallbackEta(item) ? "" : item.eta,
                     week: displayWeek(item, isYNAFormat),
                     etdFmt: fmtDate(item.etd),
                     etaFmt: isYNAFormat && hasFallbackEta(item) ? "" : fmtDate(item.eta),
                 };
-            } else if (isYNAFormat && !map[key].eta && item.eta && !hasFallbackEta(item)) {
-                map[key].eta = item.eta;
-                map[key].etaFmt = fmtDate(item.eta);
+            } else if (!byMonth[month][key].eta && item.eta && !hasFallbackEta(item)) {
+                byMonth[month][key].eta = item.eta;
+                byMonth[month][key].etaFmt = fmtDate(item.eta);
             }
         });
-        return Object.values(map).sort((a, b) => (a.etd || "").localeCompare(b.etd || ""));
+
+        return Object.keys(byMonth).sort().flatMap((month) => {
+            const actualPeriods = Object.values(byMonth[month]).sort((a, b) => (a.etd || "").localeCompare(b.etd || ""));
+            const paddedPeriods = [...actualPeriods];
+
+            while (paddedPeriods.length < 5) {
+                paddedPeriods.push({
+                    key: `pad|${month}|${paddedPeriods.length + 1}`,
+                    month,
+                    etd: "",
+                    eta: "",
+                    week: paddedPeriods.length + 1,
+                    etdFmt: "",
+                    etaFmt: "",
+                    isPad: true,
+                });
+            }
+
+            paddedPeriods.push({
+                key: `tot|${month}`,
+                month,
+                etd: "",
+                eta: "",
+                week: "TOT",
+                etdFmt: "TOT",
+                etaFmt: "",
+                isTotal: true,
+            });
+
+            return paddedPeriods;
+        });
     }, [data, isYNAFormat]);
 
-    // Group by part_number → { partNumber: { "etd|eta": qty } }
+    // Group by assy_number → { assyNumber: { "etd|eta": qty } }
     const grouped = useMemo(() => {
         const g = {};
         data.forEach((item) => {
-            const pn = item.part_number || "-";
+            const pn = item.assy_number || "-";
             if (!g[pn]) g[pn] = { meta: item, qty: {} };
             const key = isYNAFormat ? ynaPeriodKey(item.etd) : periodKey(item.etd, item.eta, item.week);
             g[pn].qty[key] = (g[pn].qty[key] || 0) + Number(item.qty || 0);
         });
-        // Sort by part_number
+        // Sort by assy_number
         return Object.entries(g).sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }));
     }, [data, isYNAFormat]);
 
@@ -128,8 +171,7 @@ function PivotPreview({ data, customer }) {
     const colTotals = useMemo(() => { 
         const totals = {};
         periods.forEach((p) => {
-            const key = p.key || periodKey(p.etd, p.eta, p.week);
-            totals[key] = grouped.reduce((sum, [, v]) => sum + (v.qty[key] || 0), 0);
+            totals[p.key] = grouped.reduce((sum, [, v]) => sum + ynaPeriodValue(v.qty, p, periods), 0);
         });
         return totals;
     }, [periods, grouped]);
@@ -143,102 +185,87 @@ function PivotPreview({ data, customer }) {
     // YNA format: Simple pivot table
     if (isYNAFormat) {
         return (
-            <div className="overflow-auto rounded-xl border border-[#b7d9c4]" style={{ maxHeight: "640px" }}>
-                <table className="border-collapse text-[11px] font-mono" style={{ minWidth: `${180 + periods.length * 64}px` }}>
+            <div className="relative overflow-auto rounded-xl border border-[#b7d9c4]" style={{ maxHeight: "640px" }}>
+                <table className="border-separate border-spacing-0 text-[11px] font-mono" style={{ minWidth: `${180 + periods.length * 64}px` }}>
                     {/* ── THEAD ── */}
-                    <thead>
+                    <thead className="sticky top-0 z-50">
                         {/* Row 1 — ETD */}
                         <tr>
                             {/* Fixed left cols */}
                             <th
                                 rowSpan={3}
-                                className="sticky left-0 z-30 border border-[#145233] px-2 py-2 text-center text-white text-[10px] tracking-wider"
-                                style={{ background: "#1D4D2A", minWidth: 32, top: 0 }}
+                                    className="sticky left-0 z-50 border border-[#145233] px-2 py-2 text-center text-white text-[10px] tracking-wider"
+                                    style={{ background: "#1D4D2A", minWidth: 32 }}
                             >
                                 NO
                             </th>
                             <th
                                 rowSpan={3}
-                                className="sticky z-30 border border-[#145233] px-3 py-2 text-center text-white text-[10px] tracking-wider"
-                                style={{ background: "#1D4D2A", minWidth: 160, left: 32, top: 0 }}
+                                    className="sticky z-50 border border-[#145233] px-3 py-2 text-center text-white text-[10px] tracking-wider"
+                                    style={{ background: "#1D4D2A", minWidth: 160, left: 32 }}
                             >
                                 ASSY NO
                             </th>
                             <th
-                                className="sticky z-20 border border-[#145233] px-2 py-1.5 text-center text-white text-[10px] tracking-wider"
-                                style={{ background: "#1D6F42", left: 192, top: 0, minWidth: 44 }}
+                                    className="sticky z-40 border border-[#145233] px-2 py-1.5 text-center text-white text-[10px] tracking-wider"
+                                    style={{ background: "#1D6F42", left: 192, minWidth: 44 }}
                             >
                                 ETD
                             </th>
                             {periods.map((p) => (
                                 <th
                                     key={`etd-${p.key || `${p.etd}|${p.eta}|${p.week}`}`}
-                                    className="border border-[#145233] px-1 py-1.5 text-center text-white text-[10px] font-semibold"
-                                    style={{ background: "#1D6F42", minWidth: 60 }}
+                                    className="sticky z-30 border border-[#145233] px-1 py-1.5 text-center text-white text-[10px] font-semibold"
+                                    style={{ background: p.isTotal ? "#2D5A3D" : "#1D6F42", minWidth: 60 }}
                                 >
                                     {p.etdFmt}
                                 </th>
                             ))}
-                            <th
-                                className="border border-[#145233] px-2 py-1.5 text-center text-white text-[10px]"
-                                style={{ background: "#1D6F42", minWidth: 60 }}
-                            >
-                                TOTAL
-                            </th>
                         </tr>
                         {/* Row 2 — ETA */}
                         <tr>
                             <th
-                                className="sticky z-20 border border-[#145233] px-2 py-1.5 text-center text-white text-[10px] tracking-wider"
-                                style={{ background: "#2E9E5E", left: 192, top: 18, minWidth: 44 }}
+                                className="sticky z-40 border border-[#145233] px-2 py-1.5 text-center text-white text-[10px] tracking-wider"
+                                style={{ background: "#2E9E5E", left: 192, minWidth: 44 }}
                             >
                                 ETA
                             </th>
                             {periods.map((p) => (
                                 <th
                                     key={`eta-${p.key || `${p.etd}|${p.eta}|${p.week}`}`}
-                                    className="border border-[#145233] px-1 py-1.5 text-center text-white text-[10px] font-semibold"
-                                    style={{ background: "#2E9E5E", minWidth: 60 }}
+                                    className="sticky z-30 border border-[#145233] px-1 py-1.5 text-center text-white text-[10px] font-semibold"
+                                    style={{ background: p.isTotal ? "#2D5A3D" : "#2E9E5E", minWidth: 60 }}
                                 >
                                     {p.etaFmt}
                                 </th>
                             ))}
-                            <th
-                                className="border border-[#145233] px-2 py-1.5 text-center text-white text-[10px]"
-                                style={{ background: "#2E9E5E", minWidth: 60 }}
-                            />
                         </tr>
                         {/* Row 3 — WEEK */}
                         <tr>
                             <th
-                                className="sticky z-20 border border-[#145233] px-2 py-1.5 text-center text-white text-[10px] tracking-wider"
-                                style={{ background: "#237A50", left: 192, top: 36, minWidth: 44 }}
+                                className="sticky z-40 border border-[#145233] px-2 py-1.5 text-center text-white text-[10px] tracking-wider"
+                                style={{ background: "#237A50", left: 192, minWidth: 44 }}
                             >
                                 WEEK
                             </th>
                             {periods.map((p) => (
                                 <th
                                     key={`week-${p.key || `${p.etd}|${p.eta}|${p.week}`}`}
-                                    className="border border-[#145233] px-1 py-1.5 text-center text-white text-[10px] font-semibold"
-                                    style={{ background: "#237A50", minWidth: 60 }}
+                                    className="sticky z-30 border border-[#145233] px-1 py-1.5 text-center text-white text-[10px] font-semibold"
+                                    style={{ background: p.isTotal ? "#2D5A3D" : "#237A50", minWidth: 60 }}
                                 >
-                                    {p.week || "-"}
+                                    {p.isTotal ? "" : (p.week || "-")}
                                 </th>
                             ))}
-                            <th
-                                className="border border-[#145233] px-2 py-1.5 text-center text-white text-[10px]"
-                                style={{ background: "#237A50", minWidth: 60 }}
-                            />
                         </tr>
                     </thead>
 
                     {/* ── TBODY ── */}
                     <tbody>
-                        {grouped.map(([partNumber, { qty }], idx) => {
+                        {grouped.map(([assyNumber, { qty }], idx) => {
                             const rowBg = idx % 2 === 0 ? "#EAF5EF" : "#C6E8D4";
-                            const rowTotal = periods.reduce((s, p) => s + (qty[p.key || periodKey(p.etd, p.eta, p.week)] || 0), 0);
                             return (
-                                <tr key={partNumber} style={{ background: rowBg }}>
+                                <tr key={assyNumber} style={{ background: rowBg }}>
                                     {/* NO */}
                                     <td
                                         className="sticky left-0 z-20 border border-[#334155] px-2 py-1.5 text-center font-bold text-white"
@@ -250,9 +277,9 @@ function PivotPreview({ data, customer }) {
                                     <td
                                         className="sticky z-20 border border-[#334155] px-3 py-1.5 font-bold text-white truncate"
                                         style={{ background: "#2D5A3D", left: 32, maxWidth: 160 }}
-                                        title={partNumber}
+                                        title={assyNumber}
                                     >
-                                        {partNumber}
+                                        {assyNumber}
                                     </td>
                                     {/* QTY label */}
                                     <td
@@ -263,30 +290,22 @@ function PivotPreview({ data, customer }) {
                                     </td>
                                     {/* Values */}
                                     {periods.map((p) => {
-                                        const key = p.key || periodKey(p.etd, p.eta, p.week);
-                                        const val = qty[key] || 0;
+                                        const val = ynaPeriodValue(qty, p, periods);
                                         return (
                                             <td
-                                                key={key}
+                                                key={p.key}
                                                 className="border px-2 py-1.5 text-right"
                                                 style={{
                                                     borderColor: "#8FC9A8",
                                                     color: val === 0 ? "#AABFB0" : "#0D4F2C",
-                                                    fontWeight: val === 0 ? 400 : 700,
-                                                    background: rowBg,
+                                                    fontWeight: p.isTotal || val !== 0 ? 700 : 400,
+                                                    background: p.isTotal ? (idx % 2 === 0 ? "#98D9C0" : "#7ECFB5") : rowBg,
                                                 }}
                                             >
                                                 {val.toLocaleString()}
                                             </td>
                                         );
                                     })}
-                                    {/* Row Total */}
-                                    <td
-                                        className="border px-2 py-1.5 text-right font-bold"
-                                        style={{ borderColor: "#8FC9A8", color: "#0D4F2C", background: rowBg }}
-                                    >
-                                        {rowTotal.toLocaleString()}
-                                    </td>
                                 </tr>
                             );
                         })}
@@ -310,11 +329,10 @@ function PivotPreview({ data, customer }) {
                                 style={{ background: "#0F3320", left: 192 }}
                             />
                             {periods.map((p) => {
-                                const key = p.key || periodKey(p.etd, p.eta, p.week);
-                                const val = colTotals[key] || 0;
+                                const val = colTotals[p.key] || 0;
                                 return (
                                     <td
-                                        key={key}
+                                        key={p.key}
                                         className="border border-[#2E7D52] px-2 py-2 text-right font-bold text-white"
                                         style={{ background: "#0F3320" }}
                                     >
@@ -322,12 +340,6 @@ function PivotPreview({ data, customer }) {
                                     </td>
                                 );
                             })}
-                            <td
-                                className="border border-[#2E7D52] px-2 py-2 text-right font-bold text-white"
-                                style={{ background: "#0F3320" }}
-                            >
-                                {grandTotal.toLocaleString()}
-                            </td>
                         </tr>
                     </tfoot>
                 </table>
@@ -369,12 +381,12 @@ function PivotPreview({ data, customer }) {
                 const periods = Object.values(byTypeMonth[type][month]).sort((a, b) => (a.etd_raw || '').localeCompare(b.etd_raw || ''));
                 let weekCount = 0;
 
-                periods.slice(0, 5).forEach((period) => {
+                periods.forEach((period) => {
                     result.push(period);
                     weekCount += 1;
                 });
 
-                while (weekCount < 5) {
+                while (weekCount < periodsPerMonth) {
                     result.push({
                         type,
                         month,
@@ -400,7 +412,7 @@ function PivotPreview({ data, customer }) {
         });
 
         return result;
-    }, [data]);
+    }, [data, periodsPerMonth]);
 
     const groups = useMemo(() => {
         const result = [];
@@ -425,7 +437,7 @@ function PivotPreview({ data, customer }) {
     const groupedDefault = useMemo(() => {
         const g = {};
         data.forEach((item) => {
-            const pn = item.part_number || '-';
+            const pn = item.assy_number || '-';
             if (!g[pn]) g[pn] = { qty: {} };
             const key = periodKey(item.etd, item.eta, item.week);
             g[pn].qty[key] = (g[pn].qty[key] || 0) + Number(item.qty || 0);
@@ -444,30 +456,29 @@ function PivotPreview({ data, customer }) {
     }, [periodsWithTotals, groupedDefault]);
 
     return (
-        <div className="overflow-auto rounded-xl border border-[#b7d9c4]" style={{ maxHeight: "640px" }}>
-            <table className="border-collapse text-[11px] font-mono" style={{ minWidth: `${240 + periodsWithTotals.length * 64}px` }}>
+        <div className="relative overflow-auto rounded-xl border border-[#b7d9c4]" style={{ maxHeight: "640px" }}>
+            <table className="border-separate border-spacing-0 text-[11px] font-mono" style={{ minWidth: `${240 + periodsWithTotals.length * 64}px` }}>
                 {/* ── THEAD ── */}
-                <thead>
+                <thead className="sticky top-0 z-50">
                     {/* Row 1 — Group headers */}
                     <tr>
                         <th
                             rowSpan={4}
-                            className="sticky left-0 z-30 border border-[#145233] px-2 py-2 text-center text-white text-[10px] tracking-wider"
-                            style={{ background: "#1D4D2A", minWidth: 32, top: 0 }}
+                            className="sticky left-0 z-50 border border-[#145233] px-2 py-2 text-center text-white text-[10px] tracking-wider"
+                            style={{ background: "#1D4D2A", minWidth: 32 }}
                         >
                             NO
                         </th>
                         <th
                             rowSpan={4}
-                            className="sticky z-30 border border-[#145233] px-3 py-2 text-center text-white text-[10px] tracking-wider"
-                            style={{ background: "#1D4D2A", minWidth: 160, left: 32, top: 0 }}
+                            className="sticky z-50 border border-[#145233] px-3 py-2 text-center text-white text-[10px] tracking-wider"
+                            style={{ background: "#1D4D2A", minWidth: 160, left: 32 }}
                         >
                             ASSY NO
                         </th>
                         <th
-                            rowSpan={4}
-                            className="sticky z-30 border border-[#145233] px-3 py-2 text-center text-white text-[10px] tracking-wider"
-                            style={{ background: "#1D4D2A", minWidth: 80, left: 192, top: 0 }}
+                            className="sticky z-50 border border-[#145233] px-3 py-2 text-center text-white text-[10px] tracking-wider"
+                            style={{ background: "#1D4D2A", minWidth: 80, left: 192 }}
                         >
                             Order Type
                         </th>
@@ -475,7 +486,7 @@ function PivotPreview({ data, customer }) {
                             <th
                                 key={`group-${idx}`}
                                 colSpan={group.end - group.start + 1}
-                                className="border border-[#145233] px-2 py-1.5 text-center text-white text-[10px] font-semibold"
+                                className="sticky z-30 border border-[#145233] px-2 py-1.5 text-center text-white text-[10px] font-semibold"
                                 style={{
                                     background: group.type === 'FIRM' ? '#FFFF00' : '#F4B183',
                                     color: '#000000',
@@ -487,10 +498,16 @@ function PivotPreview({ data, customer }) {
                     </tr>
                     {/* Row 2 — ETD */}
                     <tr>
+                        <th
+                            className="sticky z-40 border border-[#145233] px-2 py-1.5 text-center text-white text-[10px] tracking-wider"
+                            style={{ background: "#1D4D2A", left: 192, minWidth: 80 }}
+                        >
+                            ETD
+                        </th>
                         {periodsWithTotals.map((p, idx) => (
                             <th
                                 key={`etd-${idx}`}
-                                className="border border-[#145233] px-1 py-1.5 text-center text-white text-[10px] font-semibold"
+                                className="sticky z-30 border border-[#145233] px-1 py-1.5 text-center text-white text-[10px] font-semibold"
                                 style={{ background: p.week === 'TOT' ? '#2D5A3D' : '#1D6F42', minWidth: 60 }}
                             >
                                 {p.week === 'TOT' ? '' : p.etd}
@@ -499,10 +516,16 @@ function PivotPreview({ data, customer }) {
                     </tr>
                     {/* Row 3 — ETA */}
                     <tr>
+                        <th
+                            className="sticky z-40 border border-[#145233] px-2 py-1.5 text-center text-white text-[10px] tracking-wider"
+                            style={{ background: "#1D4D2A", left: 192, minWidth: 80 }}
+                        >
+                            ETA
+                        </th>
                         {periodsWithTotals.map((p, idx) => (
                             <th
                                 key={`eta-${idx}`}
-                                className="border border-[#145233] px-1 py-1.5 text-center text-white text-[10px] font-semibold"
+                                className="sticky z-30 border border-[#145233] px-1 py-1.5 text-center text-white text-[10px] font-semibold"
                                 style={{ background: p.week === 'TOT' ? '#2D5A3D' : '#2E9E5E', minWidth: 60 }}
                             >
                                 {p.week === 'TOT' ? '' : p.eta}
@@ -511,10 +534,16 @@ function PivotPreview({ data, customer }) {
                     </tr>
                     {/* Row 4 — Week */}
                     <tr>
+                        <th
+                            className="sticky z-40 border border-[#145233] px-2 py-1.5 text-center text-white text-[10px] tracking-wider"
+                            style={{ background: "#1D4D2A", left: 192, minWidth: 80 }}
+                        >
+                            Week
+                        </th>
                         {periodsWithTotals.map((p, idx) => (
                             <th
                                 key={`week-${idx}`}
-                                className="border border-[#145233] px-1 py-1.5 text-center text-white text-[10px] font-semibold"
+                                className="sticky z-30 border border-[#145233] px-1 py-1.5 text-center text-white text-[10px] font-semibold"
                                 style={{ background: p.week === 'TOT' ? '#2D5A3D' : '#237A50', minWidth: 60 }}
                             >
                                 {p.week}
@@ -525,10 +554,10 @@ function PivotPreview({ data, customer }) {
 
                 {/* ── TBODY ── */}
                 <tbody>
-                    {groupedDefault.map(([partNumber, { qty }], idx) => {
+                    {groupedDefault.map(([assyNumber, { qty }], idx) => {
                         const rowBg = idx % 2 === 0 ? '#EAF5EF' : '#C6E8D4';
                         return (
-                            <tr key={partNumber} style={{ background: rowBg }}>
+                            <tr key={assyNumber} style={{ background: rowBg }}>
                                 <td
                                     className="sticky left-0 z-20 border border-[#334155] px-2 py-1.5 text-center font-bold text-white"
                                     style={{ background: '#2D5A3D', minWidth: 32 }}
@@ -538,9 +567,9 @@ function PivotPreview({ data, customer }) {
                                 <td
                                     className="sticky z-20 border border-[#334155] px-3 py-1.5 font-bold text-white truncate"
                                     style={{ background: '#2D5A3D', left: 32, maxWidth: 160 }}
-                                    title={partNumber}
+                                    title={assyNumber}
                                 >
-                                    {partNumber}
+                                    {assyNumber}
                                 </td>
                                 <td
                                     className="sticky z-20 border border-[#334155] px-3 py-1.5 text-center text-[10px] font-bold"
@@ -656,7 +685,7 @@ function ListView({ filteredData, totalQty, resetFilters, activeFiltersCount, cu
                         <table className="min-w-[1200px] border-collapse border border-slate-200 text-sm">
                             <thead className="bg-slate-50">
                                 <tr>
-                                    {["No","Part Number.","Car Model","Family","Week","Type","ETD","ETA","Qty"].map((h) => (
+                                    {["No","Assy Number","Car Model","Family","Week","Order Type","ETD","ETA","Qty"].map((h) => (
                                         <th key={h} className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                                             {h}
                                         </th>
@@ -667,7 +696,7 @@ function ListView({ filteredData, totalQty, resetFilters, activeFiltersCount, cu
                                 {filteredData.map((item, index) => (
                                     <tr key={index} className="hover:bg-slate-50">
                                         <td className="border border-slate-200 px-3 py-2 text-slate-600">{index + 1}</td>
-                                        <td className="border border-slate-200 px-3 py-2 text-slate-800 font-medium">{item.part_number || "-"}</td>
+                                        <td className="border border-slate-200 px-3 py-2 text-slate-800 font-medium">{item.assy_number || "-"}</td>
                                         <td className="border border-slate-200 px-3 py-2 text-slate-700">{item.model || "-"}</td>
                                         <td className="border border-slate-200 px-3 py-2 text-slate-700">{item.family || "-"}</td>
                                         <td className="border border-slate-200 px-3 py-2 text-slate-700">{normalizeWeek(item.week) || "-"}</td>
@@ -707,7 +736,7 @@ function ListView({ filteredData, totalQty, resetFilters, activeFiltersCount, cu
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function SummaryShow({ sr, data }) {
-    const [searchPartNumber, setSearchPartNumber] = useState("");
+    const [searchAssyNumber, setSearchAssyNumber] = useState("");
     const [orderTypeFilter, setOrderTypeFilter] = useState("");
     const [startDate, setStartDate] = useState("");
     const [endDate, setEndDate] = useState("");
@@ -722,8 +751,8 @@ export default function SummaryShow({ sr, data }) {
         const parseWeek = (w) => Number(normalizeWeek(w)) || 0;
         const typeRank  = (t) => { const u = (t || "").toUpperCase(); return u === "FIRM" ? 0 : u === "FORECAST" ? 1 : 2; };
 
-        if (searchPartNumber)
-            filtered = filtered.filter((i) => i.part_number?.toLowerCase().includes(searchPartNumber.toLowerCase()));
+        if (searchAssyNumber)
+            filtered = filtered.filter((i) => i.assy_number?.toLowerCase().includes(searchAssyNumber.toLowerCase()));
 
         if (orderTypeFilter)
             filtered = filtered.filter((i) => (i.order_type || "").toUpperCase() === orderTypeFilter.toUpperCase());
@@ -743,7 +772,7 @@ export default function SummaryShow({ sr, data }) {
         if (weekFilter) filtered = filtered.filter((i) => parseWeek(i.week) === Number(weekFilter));
 
         return filtered.sort((a, b) => {
-            const pn = (a.part_number || "").localeCompare(b.part_number || "", undefined, { numeric: true });
+            const pn = (a.assy_number || "").localeCompare(b.assy_number || "", undefined, { numeric: true });
             if (pn !== 0) return pn;
             const tr = typeRank(a.order_type) - typeRank(b.order_type);
             if (tr !== 0) return tr;
@@ -751,7 +780,7 @@ export default function SummaryShow({ sr, data }) {
             if (wr !== 0) return wr;
             return (a.etd || "").localeCompare(b.etd || "");
         });
-    }, [data, searchPartNumber, orderTypeFilter, startDate, endDate, weekFilter]);
+    }, [data, searchAssyNumber, orderTypeFilter, startDate, endDate, weekFilter]);
 
     const totalQty         = filteredData.reduce((s, i) => s + Number(i.qty || 0), 0);
     const totalFirmQty     = filteredData.filter((i) => (i.order_type || "").toUpperCase() === "FIRM").reduce((s, i) => s + Number(i.qty || 0), 0);
@@ -759,9 +788,9 @@ export default function SummaryShow({ sr, data }) {
     const originalTotalItems = data.length;
     const originalTotalQty   = data.reduce((s, i) => s + Number(i.qty || 0), 0);
 
-    const resetFilters = () => { setSearchPartNumber(""); setOrderTypeFilter(""); setStartDate(""); setEndDate(""); setWeekFilter(""); };
+    const resetFilters = () => { setSearchAssyNumber(""); setOrderTypeFilter(""); setStartDate(""); setEndDate(""); setWeekFilter(""); };
 
-    const activeFiltersCount = [searchPartNumber, orderTypeFilter, startDate, endDate, weekFilter].filter(Boolean).length;
+    const activeFiltersCount = [searchAssyNumber, orderTypeFilter, startDate, endDate, weekFilter].filter(Boolean).length;
 
     const uniqueWeeks = useMemo(() => {
         const set = new Set();
@@ -819,15 +848,15 @@ export default function SummaryShow({ sr, data }) {
                         {/* Filter Section */}
                         <div className="flex flex-wrap items-end gap-3">
                             <div className="w-56">
-                                <label className="block text-xs font-medium text-gray-700 mb-1">Part Number</label>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Assy Number</label>
                                 <div className="relative">
                                     <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                                     <input
                                         type="text"
-                                        placeholder="Part Number or Assy No...."
+                                        placeholder="Assy Number or Assy No...."
                                         className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                                        value={searchPartNumber}
-                                        onChange={(e) => setSearchPartNumber(e.target.value)}
+                                        value={searchAssyNumber}
+                                        onChange={(e) => setSearchAssyNumber(e.target.value)}
                                     />
                                 </div>
                             </div>
@@ -884,33 +913,13 @@ export default function SummaryShow({ sr, data }) {
                         {activeFiltersCount > 0 && (
                             <div className="flex items-center gap-2 text-sm text-gray-600">
                                 <span className="text-xs text-gray-500">Active filters:</span>
-                                {searchPartNumber && <span className="bg-gray-100 px-2 py-1 rounded-full text-xs">Part Number: {searchPartNumber}</span>}
+                                {searchAssyNumber && <span className="bg-gray-100 px-2 py-1 rounded-full text-xs">Assy Number: {searchAssyNumber}</span>}
                                 {orderTypeFilter  && <span className="bg-gray-100 px-2 py-1 rounded-full text-xs">{orderTypeFilter}</span>}
                                 {weekFilter       && <span className="bg-gray-100 px-2 py-1 rounded-full text-xs">Week: {weekFilter}</span>}
                                 {(startDate || endDate) && <span className="bg-gray-100 px-2 py-1 rounded-full text-xs">Date: {startDate || "..."} - {endDate || "..."}</span>}
                             </div>
                         )}
 
-                        {/* Summary Cards */}
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            {[
-                                { label: "Items",    value: filteredData.length,              orig: originalTotalItems },
-                                { label: "Total Qty",value: totalQty.toLocaleString(),        orig: originalTotalQty.toLocaleString(), rawMatch: totalQty === originalTotalQty },
-                                { label: "FIRM",     value: totalFirmQty.toLocaleString(),    orig: null },
-                                { label: "FORECAST", value: totalForecastQty.toLocaleString(), orig: null },
-                            ].map(({ label, value, orig, rawMatch }) => (
-                                <div key={label} className="rounded-xl bg-[#f4fbf6] border border-[#d7efdd] p-4">
-                                    <div className="text-xs uppercase tracking-wide text-[#1D6F42]">{label}</div>
-                                    <div className="text-2xl font-semibold text-gray-900">{value}</div>
-                                    {orig !== null && rawMatch === false && (
-                                        <div className="text-xs text-gray-400 mt-1">of {typeof orig === "number" ? orig : orig}</div>
-                                    )}
-                                    {orig !== null && typeof rawMatch === "undefined" && filteredData.length !== originalTotalItems && (
-                                        <div className="text-xs text-gray-400 mt-1">of {orig}</div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
 
                         {/* View Mode Toggle */}
                         <div className="flex items-center gap-2">

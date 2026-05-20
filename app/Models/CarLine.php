@@ -10,7 +10,6 @@ class CarLine extends Model
 
     protected $fillable = [
         'code',
-        'description',
     ];
 
     // Relasi

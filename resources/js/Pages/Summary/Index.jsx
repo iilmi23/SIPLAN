@@ -1,6 +1,6 @@
 import AdminLayout from "@/Layouts/AdminLayout";
 import { Link, router } from "@inertiajs/react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ArrowDownTrayIcon,
     ArrowPathIcon,
@@ -21,7 +21,8 @@ export default function SummaryIndex({ srList = [], customers = [], filters = {}
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
 
-    const rows = Array.isArray(srList) ? srList : [];
+    const rows = useMemo(() => Array.isArray(srList) ? srList : (srList?.data || []), [srList]);
+    const pagination = Array.isArray(srList) ? null : srList;
     const hasFilters = Boolean(customer || search);
     const query = useMemo(() => buildQuery({ customer, search }), [customer, search]);
 
@@ -74,6 +75,16 @@ export default function SummaryIndex({ srList = [], customers = [], filters = {}
         });
     };
 
+    const goToPage = useCallback((url) => {
+        if (!url) return;
+
+        router.get(url, {}, {
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+        });
+    }, []);
+
     const confirmDelete = () => {
         if (!deleteTarget) return;
 
@@ -125,13 +136,6 @@ export default function SummaryIndex({ srList = [], customers = [], filters = {}
                                 </p>
                             </div>
 
-                            <a
-                                href={route("summary.exportAll", query)}
-                                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#1D6F42] px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#185c38]"
-                            >
-                                <ArrowDownTrayIcon className="h-5 w-5" />
-                                Export List
-                            </a>
                         </div>
                     </div>
 
@@ -336,11 +340,36 @@ export default function SummaryIndex({ srList = [], customers = [], filters = {}
                     {rows.length > 0 && (
                         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 px-6 py-3.5">
                             <p className="text-sm text-gray-500">
-                                Showing {formatNumber(rows.length)} upload batch{rows.length === 1 ? "" : "es"}
+                                Showing {formatNumber(pagination?.from || 1)}-{formatNumber(pagination?.to || rows.length)} of {formatNumber(pagination?.total || rows.length)} upload batch{rows.length === 1 ? "" : "es"}
                             </p>
-                            <p className="text-sm text-gray-500">
-                                Total qty: <span className="font-semibold text-gray-700">{formatNumber(totalQty)}</span>
-                            </p>
+                            <div className="flex flex-wrap items-center gap-3">
+                                <p className="text-sm text-gray-500">
+                                    Page qty: <span className="font-semibold text-gray-700">{formatNumber(totalQty)}</span>
+                                </p>
+                                {pagination?.last_page > 1 && (
+                                    <div className="flex items-center gap-2 text-sm">
+                                        <button
+                                            type="button"
+                                            disabled={!pagination.prev_page_url}
+                                            onClick={() => goToPage(pagination.prev_page_url)}
+                                            className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 font-semibold text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
+                                        >
+                                            Previous
+                                        </button>
+                                        <span className="font-semibold text-gray-600">
+                                            {pagination.current_page} / {pagination.last_page}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            disabled={!pagination.next_page_url}
+                                            onClick={() => goToPage(pagination.next_page_url)}
+                                            className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 font-semibold text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
+                                        >
+                                            Next
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>

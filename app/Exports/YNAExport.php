@@ -73,31 +73,31 @@ class YNAExport implements FromArray, WithStyles, WithColumnWidths, WithCustomSt
         }
         $rows[] = $row3;
 
-        // Data rows — satu baris per part_number
-        $grouped = $this->data->groupBy('part_number');
+        // Data rows — satu baris per assy_number
+        $grouped = $this->data->groupBy('assy_number');
         $index   = 0;
 
-        foreach ($grouped as $partNumber => $items) {
+        foreach ($grouped as $assyNumber => $items) {
             $index++;
 
-            $dataRow = [$index, $partNumber, 'QTY'];
+            $dataRow = [$index, $assyNumber, 'QTY'];
             foreach ($periods as $p) {
                 if ($p['week'] === 'TOT') {
                     // Monthly subtotal for this part
                     $monthKey = $p['month'];
                     $total    = 0;
                     foreach ($items as $item) {
-                        $itemMonth = $item->month ?? date('Y-m', strtotime($item->eta));
+                        $itemMonth = $this->monthKey($item);
                         if ($itemMonth === $monthKey) {
                             $total += (int)($item->qty ?? 0);
                         }
                     }
                     $dataRow[] = ($total === 0) ? '0' : $total;
                 } else {
-                    $key   = implode('|', [$p['etd_raw'], $p['eta_raw'], $p['week']]);
+                    $key   = $p['key'];
                     $total = 0;
                     foreach ($items as $item) {
-                        $itemKey = implode('|', [$item->etd, $item->eta, $this->normalizeWeek($item->week)]);
+                        $itemKey = $this->periodKey($item);
                         if ($itemKey === $key) {
                             $total += (int)($item->qty ?? 0);
                         }
@@ -115,17 +115,17 @@ class YNAExport implements FromArray, WithStyles, WithColumnWidths, WithCustomSt
                 $monthKey = $p['month'];
                 $total    = 0;
                 foreach ($this->data as $item) {
-                    $itemMonth = $item->month ?? date('Y-m', strtotime($item->eta));
+                    $itemMonth = $this->monthKey($item);
                     if ($itemMonth === $monthKey) {
                         $total += (int)($item->qty ?? 0);
                     }
                 }
                 $totalRow[] = ($total === 0) ? '0' : $total;
             } else {
-                $key   = implode('|', [$p['etd_raw'], $p['eta_raw'], $p['week']]);
+                $key   = $p['key'];
                 $total = 0;
                 foreach ($this->data as $item) {
-                    $itemKey = implode('|', [$item->etd, $item->eta, $this->normalizeWeek($item->week)]);
+                    $itemKey = $this->periodKey($item);
                     if ($itemKey === $key) {
                         $total += (int)($item->qty ?? 0);
                     }
@@ -356,33 +356,38 @@ class YNAExport implements FromArray, WithStyles, WithColumnWidths, WithCustomSt
         $byMonth = [];
 
         $this->data->each(function ($item) use (&$byMonth) {
-            $month = $item->month ?? ($item->eta ? substr($item->eta, 0, 7) : 'unknown');
-            $key   = implode('|', [$item->etd, $item->eta, $this->normalizeWeek($item->week)]);
+            $month = $this->monthKey($item);
+            $key   = $this->periodKey($item);
 
             $byMonth[$month] = $byMonth[$month] ?? [];
             if (!isset($byMonth[$month][$key])) {
                 $byMonth[$month][$key] = [
+                    'key'      => $key,
                     'month'    => $month,
                     'week'     => $this->normalizeWeek($item->week),
                     'etd'      => $this->dateLabel($item->etd),
-                    'eta'      => $this->dateLabel($item->eta),
+                    'eta'      => $this->shouldDisplayEta($item) ? $this->dateLabel($item->eta) : '',
                     'etd_raw'  => $item->etd,
                     'eta_raw'  => $item->eta,
                 ];
+            } elseif (empty($byMonth[$month][$key]['eta']) && $this->shouldDisplayEta($item)) {
+                $byMonth[$month][$key]['eta'] = $this->dateLabel($item->eta);
+                $byMonth[$month][$key]['eta_raw'] = $item->eta;
             }
         });
 
         $result = [];
 
         // Iterate through months in order
-        foreach (ksort($byMonth) ?: array_keys($byMonth) as $month) {
+        ksort($byMonth);
+        foreach (array_keys($byMonth) as $month) {
             $periodsInMonth = $byMonth[$month];
             $sorted = collect($periodsInMonth)->sortBy(function ($p) {
                 return $p['etd_raw'] ?? '';
             })->values()->toArray();
 
-            // Add up to 5 weeks
-            foreach (array_slice($sorted, 0, 5) as $period) {
+            // Keep every actual period, then pad only when fewer than 5 columns.
+            foreach ($sorted as $period) {
                 $result[] = $period;
             }
 
@@ -390,6 +395,7 @@ class YNAExport implements FromArray, WithStyles, WithColumnWidths, WithCustomSt
             $weekCount = count($sorted);
             for ($w = $weekCount; $w < 5; $w++) {
                 $result[] = [
+                    'key'      => "pad|{$month}|".($w + 1),
                     'month'    => $month,
                     'week'     => $w + 1,
                     'etd'      => '',
@@ -401,6 +407,7 @@ class YNAExport implements FromArray, WithStyles, WithColumnWidths, WithCustomSt
 
             // Add TOT row for this month
             $result[] = [
+                'key'      => "tot|{$month}",
                 'month'    => $month,
                 'week'     => 'TOT',
                 'etd'      => '',
@@ -411,6 +418,22 @@ class YNAExport implements FromArray, WithStyles, WithColumnWidths, WithCustomSt
         }
 
         return $result;
+    }
+
+    private function monthKey($item): string
+    {
+        $date = $item->etd ?: ($item->eta ?: null);
+
+        if ($date) {
+            return substr((string) $date, 0, 7);
+        }
+
+        return (string) ($item->month ?: 'unknown');
+    }
+
+    private function periodKey($item): string
+    {
+        return (string) ($item->etd ?: '');
     }
 
     protected function normalizeWeek($week): string

@@ -20,4 +20,5 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 });
 
 Route::get('/carlines', [CarlineController::class, 'apiIndex']);
+Route::get('/assy', [\App\Http\Controllers\AssyController::class, 'apiIndex']);
 Route::get('/customers', [\App\Http\Controllers\CustomerController::class, 'apiIndex']);

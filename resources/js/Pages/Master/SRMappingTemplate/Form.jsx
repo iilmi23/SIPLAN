@@ -4,7 +4,7 @@ import { Link, useForm } from "@inertiajs/react";
 import { useState } from "react";
 
 const columnFields = [
-    ["part_number_column", "Part Number Column", true],
+    ["assy_number_column", "Assy Number Column", true],
     ["qty_column", "Qty Column", false],
     ["qty_start_column", "Qty Start Column", false],
     ["qty_end_column", "Qty End Column", false],
@@ -34,7 +34,7 @@ export default function Form({ customers = [], template }) {
         sheet_index: template?.sheet_index ?? "",
         header_row: template?.header_row ?? "",
         data_start_row: template?.data_start_row || 2,
-        part_number_column: template?.part_number_column || "",
+        assy_number_column: template?.assy_number_column || "",
         qty_column: template?.qty_column || "",
         qty_start_column: template?.qty_start_column || "",
         qty_end_column: template?.qty_end_column || "",
@@ -353,22 +353,22 @@ export default function Form({ customers = [], template }) {
                             <div className="mt-5 overflow-hidden rounded-xl border border-green-200">
                                 <div className="grid gap-3 bg-green-50 px-4 py-3 text-sm text-green-900 sm:grid-cols-3">
                                     <div>Total records: <span className="font-semibold">{mappingPreview.total_records}</span></div>
-                                    <div>Unique parts: <span className="font-semibold">{mappingPreview.unique_parts}</span></div>
+                                    <div>Unique assy numbers: <span className="font-semibold">{mappingPreview.unique_assy_numbers}</span></div>
                                     <div>Total qty: <span className="font-semibold">{mappingPreview.total_qty}</span></div>
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full min-w-[900px] text-sm">
                                         <thead className="bg-white text-xs uppercase text-gray-500">
                                             <tr>
-                                                {["Part Number", "Qty", "ETD", "ETA", "Order Type", "Month", "Week", "Model", "Family"].map((header) => (
+                                                {["Assy Number", "Qty", "ETD", "ETA", "Order Type", "Month", "Week", "Model", "Family"].map((header) => (
                                                     <th key={header} className="px-4 py-3 text-left font-semibold">{header}</th>
                                                 ))}
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-100">
                                             {mappingPreview.preview.map((row, index) => (
-                                                <tr key={`${row.part_number}-${index}`} className="bg-white">
-                                                    <td className="px-4 py-3 font-medium text-gray-900">{row.part_number}</td>
+                                                <tr key={`${row.assy_number}-${index}`} className="bg-white">
+                                                    <td className="px-4 py-3 font-medium text-gray-900">{row.assy_number}</td>
                                                     <td className="px-4 py-3 text-gray-700">{row.qty}</td>
                                                     <td className="px-4 py-3 text-gray-700">{row.etd}</td>
                                                     <td className="px-4 py-3 text-gray-700">{row.eta}</td>

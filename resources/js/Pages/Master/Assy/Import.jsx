@@ -16,12 +16,13 @@ import {
 } from "@heroicons/react/24/outline";
 
 const REQUIRED_COLUMNS = [
-    { key: "A", label: "part_number", example: "82115-0E440" },
-    { key: "B", label: "assy_code", example: "DSY3" },
-    { key: "C", label: "level", example: "J 0101" },
-    { key: "D", label: "type", example: "GAS / HEV" },
-    { key: "E", label: "umh", example: "4.960000" },
+    { key: "A", label: "assy_number", example: "82115-0E440" },
+    { key: "B", label: "carline", example: "D14N" },
+    { key: "C", label: "type", example: "GAS / HEV" },
+    { key: "D", label: "level", example: "J 0101" },
+    { key: "E", label: "assy_code", example: "DSY3" },
     { key: "F", label: "std_pack", example: "4" },
+    { key: "G", label: "umh", example: "4.960000" },
 ];
 
 export default function Import({ carlines = [] }) {
@@ -37,6 +38,7 @@ export default function Import({ carlines = [] }) {
     const [errorMessage, setErrorMessage] = useState("");
     const [showSuccess, setShowSuccess] = useState(false);
     const [showError, setShowError] = useState(false);
+    const [showImportConfirm, setShowImportConfirm] = useState(false);
 
     const previewHeaders = Object.keys(previewData[0] || {});
     const canPreview = Boolean(selectedFile && selectedSheet && !uploading);
@@ -166,10 +168,11 @@ export default function Import({ carlines = [] }) {
             return;
         }
 
-        if (!window.confirm("Are you sure you want to import this Assy data?")) {
-            return;
-        }
+        setShowImportConfirm(true);
+    };
 
+    const executeImportExcel = async () => {
+        setShowImportConfirm(false);
         setUploading(true);
 
         const formData = new FormData();
@@ -210,6 +213,7 @@ export default function Import({ carlines = [] }) {
         setSelectedSheet("");
         setPreviewData([]);
         setShowPreview(false);
+        setShowImportConfirm(false);
     };
 
     const resetForm = () => {
@@ -259,7 +263,7 @@ export default function Import({ carlines = [] }) {
                                         Import Assy Master
                                     </h1>
                                     <p className="mt-1 text-sm text-gray-500">
-                                        Upload Excel, select sheet, preview data, then import to the selected car line.
+                                        Upload Excel, select sheet, preview data, then create or update assy master by assy number.
                                     </p>
                                 </div>
                             </div>
@@ -300,7 +304,7 @@ export default function Import({ carlines = [] }) {
                                             <option value="">Select Car Line</option>
                                             {carlines.map((carline) => (
                                                 <option key={carline.id} value={carline.id}>
-                                                    {carline.code} - {carline.description || carline.name || "Car Line"}
+                                                    {carline.code}
                                                 </option>
                                             ))}
                                         </select>
@@ -397,7 +401,7 @@ export default function Import({ carlines = [] }) {
                                         className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#1D6F42] px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#185c38] disabled:cursor-not-allowed disabled:opacity-50"
                                     >
                                         <CloudArrowUpIcon className="h-4 w-4" />
-                                        Upload Assy
+                                        Import / Update Assy
                                     </button>
                                     <button
                                         type="button"
@@ -411,11 +415,22 @@ export default function Import({ carlines = [] }) {
                                 </div>
                             </section>
 
-                            <PreviewTable headers={previewHeaders} rows={previewData} showPreview={showPreview} />
+                        <PreviewTable headers={previewHeaders} rows={previewData} showPreview={showPreview} />
                         </div>
                     </div>
                 </div>
             </div>
+
+            {showImportConfirm && (
+                <ConfirmDialog
+                    title="Import / Update Assy"
+                    message={`Data preview berisi ${previewData.length} baris. Lanjutkan import dan update Master Assy?`}
+                    confirmLabel="Import Sekarang"
+                    processing={uploading}
+                    onCancel={() => setShowImportConfirm(false)}
+                    onConfirm={executeImportExcel}
+                />
+            )}
 
             <style>{`
                 @keyframes slideDown {
@@ -458,6 +473,56 @@ function Alert({ type, message, onClose }) {
     );
 }
 
+function ConfirmDialog({ title, message, confirmLabel, processing, onCancel, onConfirm }) {
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+            <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl">
+                <div className="border-b border-gray-100 p-6">
+                    <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-start gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-[#1D6F42]">
+                                <ExclamationTriangleIcon className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <h2 className="text-base font-semibold text-gray-900">{title}</h2>
+                                <p className="mt-1 text-sm text-gray-500">{message}</p>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={onCancel}
+                            disabled={processing}
+                            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 disabled:opacity-50"
+                            aria-label="Close confirmation"
+                        >
+                            <XMarkIcon className="h-4 w-4" />
+                        </button>
+                    </div>
+                </div>
+
+                <div className="flex justify-end gap-3 bg-gray-50 px-6 py-4">
+                    <button
+                        type="button"
+                        onClick={onCancel}
+                        disabled={processing}
+                        className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
+                    >
+                        Batal
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onConfirm}
+                        disabled={processing}
+                        className="h-10 rounded-lg bg-[#1D6F42] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#185c38] disabled:opacity-50"
+                    >
+                        {processing ? "Processing..." : confirmLabel}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function FormatGuide() {
     return (
         <div className="rounded-xl border border-emerald-100 bg-[#1D6F42]/5 p-4">
@@ -469,12 +534,12 @@ function FormatGuide() {
                     <div>
                         <h2 className="text-sm font-semibold text-gray-900">Excel Format Requirements</h2>
                         <p className="mt-1 text-sm text-gray-600">
-                            Use the template columns below. The importer checks required headers and unique part numbers per car line.
+                            Use assy_number, std_pack, and umh to update SIREP data in bulk. Assy code and level are only required for new assy numbers.
                         </p>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-7">
                     {REQUIRED_COLUMNS.map((column) => (
                         <div key={column.key} className="rounded-lg border border-emerald-100 bg-white px-3 py-2">
                             <p className="text-[11px] font-semibold uppercase text-[#1D6F42]">Column {column.key}</p>
@@ -506,7 +571,7 @@ function PreviewTable({ headers, rows, showPreview }) {
             <div className="flex flex-col gap-3 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h2 className="text-sm font-semibold text-gray-900">Data Preview</h2>
-                    <p className="mt-0.5 text-xs text-gray-500">Showing first {rows.length} rows from the selected sheet.</p>
+                    <p className="mt-0.5 text-xs text-gray-500">Showing {rows.length} rows from the selected sheet.</p>
                 </div>
                 <span className="w-fit rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">
                     {rows.length} rows displayed

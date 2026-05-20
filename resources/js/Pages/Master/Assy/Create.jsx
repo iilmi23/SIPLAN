@@ -5,7 +5,7 @@ import { Link, useForm } from "@inertiajs/react";
 export default function Create({ carlines }) {
     const { data, setData, post, processing, errors } = useForm({
         carline_id: "",
-        part_number: "",
+        assy_number: "",
         assy_code: "",
         level: "",
         type: "",
@@ -66,21 +66,21 @@ export default function Create({ carlines }) {
                                     )}
                                 </div>
 
-                                {/* Part Number */}
+                                {/* Assy Number */}
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1">
-                                        Part Number <span className="text-red-500">*</span>
+                                        Assy Number <span className="text-red-500">*</span>
                                     </label>
                                     <input
                                         type="text"
-                                        value={data.part_number}
-                                        onChange={(e) => setData("part_number", e.target.value)}
+                                        value={data.assy_number}
+                                        onChange={(e) => setData("assy_number", e.target.value)}
                                         placeholder="e.g., 82115-0E440"
                                         className="w-full h-11 px-4 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#1D6F42]/20 focus:border-[#1D6F42]"
                                         autoFocus
                                     />
-                                    {errors.part_number && (
-                                        <p className="text-red-500 text-sm mt-1">{errors.part_number}</p>
+                                    {errors.assy_number && (
+                                        <p className="text-red-500 text-sm mt-1">{errors.assy_number}</p>
                                     )}
                                 </div>
 

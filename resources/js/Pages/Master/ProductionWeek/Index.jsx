@@ -21,6 +21,10 @@ import AdminLayout from "@/Layouts/AdminLayout";
 import Breadcrumb from "@/Components/Admin/Breadcrumb";
 
 const MONTH_ORDER = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+const MONTH_FILTERS = MONTH_ORDER.map((label, index) => ({ value: String(index + 1), label }));
+const compactFilters = (values) => Object.fromEntries(
+    Object.entries(values).filter(([, value]) => value !== "" && value !== null && value !== undefined)
+);
 
 // Warna utama yang konsisten
 const COLORS = {
@@ -49,16 +53,16 @@ export default function Index({ productionWeeks, customers = [], availableYears,
     const [searchTerm, setSearchTerm] = useState("");
     const [sortConfig, setSortConfig] = useState({ key: "year", direction: "desc" });
     const [filterOpen, setFilterOpen] = useState(false);
+    const [selectedCustomer, setSelectedCustomer] = useState(filters?.customer_id ?? "");
+    const [selectedMonth, setSelectedMonth] = useState(filters?.month_number ?? "");
     const [selectedYear, setSelectedYear] = useState(filters?.year ?? "");
+    const [deleteRow, setDeleteRow] = useState(null);
 
     const monthRows = productionWeeks?.data ?? [];
     const customerLookup = useMemo(() => {
         return new Map(customers.map((customer) => [
             String(customer.id),
-            {
-                label: customer.name,
-                code: customer.code,
-            },
+            customer.code,
         ]));
     }, [customers]);
 
@@ -68,7 +72,7 @@ export default function Index({ productionWeeks, customers = [], availableYears,
         }
 
         const customer = customerLookup.get(String(row.customer_id));
-        return customer ? `${customer.label} (${customer.code})` : `Customer #${row.customer_id}`;
+        return customer ?? `#${row.customer_id}`;
     };
 
     useEffect(() => {
@@ -81,12 +85,16 @@ export default function Index({ productionWeeks, customers = [], availableYears,
     }, [flash]);
 
     const applyFilter = () => {
-        router.get(route("production-week.index"), {
+        router.get(route("production-week.index"), compactFilters({
+            customer_id: selectedCustomer,
+            month_number: selectedMonth,
             year: selectedYear,
-        }, { preserveState: true, replace: true });
+        }), { preserveState: true, replace: true });
     };
 
     const clearFilter = () => {
+        setSelectedCustomer("");
+        setSelectedMonth("");
         setSelectedYear("");
         router.get(route("production-week.index"), {}, { preserveState: true, replace: true });
     };
@@ -107,7 +115,8 @@ export default function Index({ productionWeeks, customers = [], availableYears,
             String(w.month_number ?? "").includes(searchTerm) ||
             String(w.start_date ?? "").toLowerCase().includes(keyword) ||
             String(w.end_date ?? "").toLowerCase().includes(keyword) ||
-            String(w.total_weeks ?? "").includes(searchTerm)
+            String(w.total_weeks ?? "").includes(searchTerm) ||
+            String(w.total_working_days ?? "").includes(searchTerm)
         );
 
         return [...filtered].sort((a, b) => {
@@ -154,9 +163,12 @@ export default function Index({ productionWeeks, customers = [], availableYears,
     };
 
     const handleDelete = (row) => {
-        if (confirm(`Delete ${row.month_name} ${row.year}?`)) {
-            router.delete(buildMonthUrl("delete", row));
-        }
+        setDeleteRow(row);
+    };
+
+    const confirmDelete = () => {
+        router.delete(buildMonthUrl("delete", deleteRow));
+        setDeleteRow(null);
     };
 
     const handleEdit = (row) => {
@@ -246,7 +258,7 @@ export default function Index({ productionWeeks, customers = [], availableYears,
                                 <button
                                     onClick={() => setFilterOpen(!filterOpen)}
                                     className={`inline-flex items-center gap-2 h-11 px-4 border rounded-xl text-sm font-medium transition-all ${
-                                        filterOpen || filters?.customer_id || filters?.year
+                                        filterOpen || filters?.customer_id || filters?.month_number || filters?.year
                                             ? "bg-[#1D6F42]/10 border-[#1D6F42]/30 text-[#1D6F42]"
                                             : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
                                     }`}
@@ -284,6 +296,37 @@ export default function Index({ productionWeeks, customers = [], availableYears,
                                     </button>
                                 </div>
                                 <div className="flex flex-wrap gap-3 items-end">
+                                    <div className="min-w-[220px]">
+                                        <label className="block text-xs font-medium text-gray-600 mb-1.5">Customer</label>
+                                        <select
+                                            value={selectedCustomer}
+                                            onChange={e => setSelectedCustomer(e.target.value)}
+                                            className="w-full h-10 px-3 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6F42]/20 focus:border-[#1D6F42]"
+                                        >
+                                            <option value="">All Customers</option>
+                                            <option value="global">Global</option>
+                                            {customers.map(customer => (
+                                                <option key={customer.id} value={customer.id}>
+                                                    {customer.code}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="min-w-[180px]">
+                                        <label className="block text-xs font-medium text-gray-600 mb-1.5">Month</label>
+                                        <select
+                                            value={selectedMonth}
+                                            onChange={e => setSelectedMonth(e.target.value)}
+                                            className="w-full h-10 px-3 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6F42]/20 focus:border-[#1D6F42]"
+                                        >
+                                            <option value="">All Months</option>
+                                            {MONTH_FILTERS.map(month => (
+                                                <option key={month.value} value={month.value}>
+                                                    {month.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
                                     <div className="min-w-[180px]">
                                         <label className="block text-xs font-medium text-gray-600 mb-1.5">Year</label>
                                         <select
@@ -320,7 +363,8 @@ export default function Index({ productionWeeks, customers = [], availableYears,
                                 <col className="w-[18%]" />
                                 <col className="w-[19%]" />
                                 <col className="w-[9%]" />
-                                <col className="w-[24%]" />
+                                <col className="w-[12%]" />
+                                <col className="w-[12%]" />
                             </colgroup>
                             <thead>
                                 <tr className="bg-gray-100/80 border-b border-gray-200">
@@ -340,7 +384,8 @@ export default function Index({ productionWeeks, customers = [], availableYears,
                                         <div className="flex items-center gap-1.5">Customer {getSortIcon("customer_name")}</div>
                                     </th>
                                     <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200">Weeks</th>
-                                    <th className="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
+                                    <th className="px-4 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200">Working Days</th>
+                                    <th className="px-4 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
@@ -369,30 +414,37 @@ export default function Index({ productionWeeks, customers = [], availableYears,
                                                 {w.total_weeks}
                                             </span>
                                         </td>
+                                        <td className="px-4 py-4 text-center border-r border-gray-100">
+                                            <span className="inline-flex min-w-12 justify-center rounded-lg bg-emerald-50 px-2.5 py-1 text-sm font-semibold text-[#1D6F42]">
+                                                {w.total_working_days ?? 0}
+                                            </span>
+                                        </td>
                                         <td className="px-4 py-4 whitespace-nowrap">
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex items-center justify-center gap-2">
                                                 <button
                                                     type="button"
                                                     onClick={() => handleEdit(w)}
-                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 hover:text-[#1D6F42] hover:border-[#1D6F42]/30 transition-colors"
+                                                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 hover:text-[#1D6F42] hover:border-[#1D6F42]/30 transition-colors"
+                                                    title="Edit"
+                                                    aria-label={`Edit ${w.month_name} ${w.year}`}
                                                 >
-                                                    <PencilIcon className="w-4 h-4" />
-                                                    Edit
+                                                    <PencilIcon className="w-4 h-4" aria-hidden="true" />
                                                 </button>
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleDelete(w)}
-                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-red-600 bg-white border border-red-200 hover:bg-red-50 hover:border-red-300 transition-colors"
+                                                    onClick={() => setDeleteRow(w)}
+                                                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-red-600 bg-white border border-red-200 hover:bg-red-50 hover:border-red-300 transition-colors"
+                                                    title="Delete"
+                                                    aria-label={`Delete ${w.month_name} ${w.year}`}
                                                 >
-                                                    <TrashIcon className="w-4 h-4" />
-                                                    Delete
+                                                    <TrashIcon className="w-4 h-4" aria-hidden="true" />
                                                 </button>
                                             </div>
                                         </td>
                                     </tr>
                                 )) : (
                                     <tr>
-                                        <td colSpan={7} className="py-16 text-center">
+                                        <td colSpan={8} className="py-16 text-center">
                                             <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-2xl flex items-center justify-center border-2 border-dashed border-gray-200">
                                                 <CalendarDaysIcon className="w-8 h-8 text-gray-400" />
                                             </div>
@@ -459,6 +511,34 @@ export default function Index({ productionWeeks, customers = [], availableYears,
                 }
                 .animate-slideDown { animation: slideDown 0.25s ease-out; }
             `}</style>
+
+            {/* Delete Modal */}
+            {deleteRow && (
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+                    <div className="bg-white p-6 rounded-xl w-96 shadow-xl">
+                        <h3 className="text-lg font-semibold mb-2 text-gray-900">
+                            Delete Production Week
+                        </h3>
+                        <p className="text-sm text-gray-600 mb-6">
+                            Are you sure you want to delete <b>{deleteRow.month_name} {deleteRow.year}</b>?
+                        </p>
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => setDeleteRow(null)}
+                                className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={confirmDelete}
+                                className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </AdminLayout>
     );
 }

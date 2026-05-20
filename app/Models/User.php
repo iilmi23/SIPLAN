@@ -23,6 +23,7 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'permissions',
         'email_verified_at',
     ];
 
@@ -46,6 +47,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'permissions' => 'array',
         ];
     }
 
@@ -66,6 +68,91 @@ class User extends Authenticatable
     public function isStaff(): bool
     {
         return $this->hasRole('ppc');
+    }
+
+    public static function permissionCatalog(): array
+    {
+        return [
+            'General' => [
+                ['key' => 'dashboard.view', 'label' => 'Dashboard'],
+            ],
+            'Masters' => [
+                ['key' => 'masters.view', 'label' => 'Masters Menu'],
+                ['key' => 'customers.view', 'label' => 'Customers'],
+                ['key' => 'ports.view', 'label' => 'Ports'],
+                ['key' => 'sr-templates.view', 'label' => 'SR Templates'],
+                ['key' => 'production-week.view', 'label' => 'Production Week'],
+                ['key' => 'carline.view', 'label' => 'Carline'],
+                ['key' => 'assy.view', 'label' => 'Assy'],
+            ],
+            'Shipping Release' => [
+                ['key' => 'sr.upload', 'label' => 'Upload SR'],
+                ['key' => 'summary.view', 'label' => 'Summary'],
+                ['key' => 'spp.view', 'label' => 'SPP'],
+                ['key' => 'history.view', 'label' => 'History'],
+            ],
+            'System' => [
+                ['key' => 'users.view', 'label' => 'Users'],
+            ],
+        ];
+    }
+
+    public static function permissionKeys(): array
+    {
+        return collect(self::permissionCatalog())
+            ->flatten(1)
+            ->pluck('key')
+            ->all();
+    }
+
+    public static function defaultPermissionsForRole(string $role): array
+    {
+        $permissions = [
+            'admin' => [
+                'dashboard.view',
+                'masters.view',
+                'customers.view',
+                'ports.view',
+                'sr-templates.view',
+                'production-week.view',
+                'carline.view',
+                'assy.view',
+                'sr.upload',
+                'summary.view',
+                'spp.view',
+                'history.view',
+                'users.view',
+            ],
+            'ppc' => [
+                'dashboard.view',
+                'masters.view',
+                'production-week.view',
+                'carline.view',
+                'assy.view',
+                'sr.upload',
+                'summary.view',
+                'spp.view',
+                'history.view',
+            ],
+        ];
+
+        return $permissions[strtolower(trim($role))] ?? $permissions['ppc'];
+    }
+
+    public function permissions(): array
+    {
+        $storedPermissions = $this->getAttribute('permissions');
+
+        if (is_array($storedPermissions)) {
+            return array_values(array_intersect($storedPermissions, self::permissionKeys()));
+        }
+
+        return self::defaultPermissionsForRole($this->role);
+    }
+
+    public function hasPermission(string $permission): bool
+    {
+        return in_array($permission, $this->permissions(), true);
     }
 
     public function getRoleLabelAttribute(): string

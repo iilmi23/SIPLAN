@@ -16,7 +16,7 @@ return new class extends Migration
             $table->unsignedInteger('sheet_index')->nullable();
             $table->unsignedInteger('header_row')->nullable();
             $table->unsignedInteger('data_start_row');
-            $table->string('part_number_column', 8);
+            $table->string('assy_number_column', 8);
             $table->string('qty_column', 8)->nullable();
             $table->string('qty_start_column', 8)->nullable();
             $table->string('qty_end_column', 8)->nullable();

@@ -2,23 +2,16 @@ import AdminLayout from "@/Layouts/AdminLayout";
 import Breadcrumb from "@/Components/Admin/Breadcrumb";
 import { Link, useForm } from "@inertiajs/react";
 
-export default function Edit({ assy, carLines }) {
+export default function Edit({ assy, carlines = [] }) {
     const { data, setData, put, processing, errors } = useForm({
-        carline_id: assy.carline_id.toString(),
-        part_number: assy.part_number,
-        sap_id: assy.sap_id || "",
-        assy_code: assy.assy_code,
-        level: assy.level,
-        market: assy.market || "",
-        drive_side: assy.drive_side || "",
-        umh_gum: assy.umh_gum.toString(),
-        umh_ocs: assy.umh_ocs?.toString() || "",
-        std_pack: assy.std_pack.toString(),
-        cct: assy.cct?.toString() || "",
-        project_code: assy.project_code || "",
-        model_code: assy.model_code || "",
-        rank: assy.rank || "",
-        is_active: assy.is_active,
+        carline_id: assy.carline_id?.toString() || "",
+        assy_number: assy.assy_number || "",
+        assy_code: assy.assy_code || "",
+        level: assy.level || "",
+        type: assy.type || "",
+        umh: assy.umh?.toString() || "",
+        std_pack: assy.std_pack?.toString() || "",
+        is_active: assy.is_active ?? true,
     });
 
     const submit = (e) => {
@@ -30,7 +23,7 @@ export default function Edit({ assy, carLines }) {
         <AdminLayout>
             <div className="min-h-screen bg-gray-50/40 pt-2 pb-8 px-5 md:px-8 font-sans">
 
-                <Breadcrumb items={[{ label: "Masters" }, { label: "Assy", href: route("assy.index") }, { label: `Edit: ${assy.part_number}` }]} />
+                <Breadcrumb items={[{ label: "Masters" }, { label: "Assy", href: route("assy.index") }, { label: `Edit: ${assy.assy_number}` }]} />
 
                 {/* Card */}
                 <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
@@ -41,7 +34,7 @@ export default function Edit({ assy, carLines }) {
                             Edit Assy Master
                         </h1>
                         <p className="text-sm text-gray-500 mt-1">
-                            Update part/assy information for {assy.part_number}
+                            Update assy information for {assy.assy_number}
                         </p>
                     </div>
 
@@ -63,7 +56,7 @@ export default function Edit({ assy, carLines }) {
                                         className="w-full h-11 px-4 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6F42]/20 focus:border-[#1D6F42] bg-white"
                                     >
                                         <option value="">Select Car Line</option>
-                                        {carLines.map((carLine) => (
+                                        {carlines.map((carLine) => (
                                             <option key={carLine.id} value={carLine.id}>
                                                 {carLine.code} - {carLine.name}
                                             </option>
@@ -74,35 +67,22 @@ export default function Edit({ assy, carLines }) {
                                     )}
                                 </div>
 
-                                {/* Part Number */}
+                                {/* Assy Number */}
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1">
-                                        Part Number <span className="text-red-500">*</span>
+                                        Assy Number <span className="text-red-500">*</span>
                                     </label>
                                     <input
                                         type="text"
-                                        value={data.part_number}
-                                        onChange={(e) => setData("part_number", e.target.value)}
+                                        value={data.assy_number}
+                                        onChange={(e) => setData("assy_number", e.target.value)}
                                         className="w-full h-11 px-4 border border-gray-200 rounded-xl text-sm font-mono bg-gray-50 text-gray-500 focus:outline-none cursor-not-allowed"
                                         readOnly
                                     />
-                                    <p className="text-xs text-gray-400 mt-1">Part number cannot be changed</p>
-                                    {errors.part_number && (
-                                        <p className="text-red-500 text-sm mt-1">{errors.part_number}</p>
+                                    <p className="text-xs text-gray-400 mt-1">Assy number cannot be changed</p>
+                                    {errors.assy_number && (
+                                        <p className="text-red-500 text-sm mt-1">{errors.assy_number}</p>
                                     )}
-                                </div>
-
-                                {/* SAP ID */}
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-1">
-                                        SAP ID
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={data.sap_id}
-                                        onChange={(e) => setData("sap_id", e.target.value)}
-                                        className="w-full h-11 px-4 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#1D6F42]/20 focus:border-[#1D6F42]"
-                                    />
                                 </div>
 
                                 {/* Assy Code */}
@@ -137,68 +117,34 @@ export default function Edit({ assy, carLines }) {
                                     )}
                                 </div>
 
-                                {/* Market & Drive Side */}
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-sm font-semibold text-gray-700 mb-1">
-                                            Market
-                                        </label>
-                                        <select
-                                            value={data.market}
-                                            onChange={(e) => setData("market", e.target.value)}
-                                            className="w-full h-11 px-4 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6F42]/20 focus:border-[#1D6F42] bg-white"
-                                        >
-                                            <option value="">Select Market</option>
-                                            <option value="GAS">GAS</option>
-                                            <option value="HEV">HEV</option>
-                                            <option value="HV">HV</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-semibold text-gray-700 mb-1">
-                                            Drive Side
-                                        </label>
-                                        <select
-                                            value={data.drive_side}
-                                            onChange={(e) => setData("drive_side", e.target.value)}
-                                            className="w-full h-11 px-4 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6F42]/20 focus:border-[#1D6F42] bg-white"
-                                        >
-                                            <option value="">Select Drive Side</option>
-                                            <option value="LHD">LHD</option>
-                                            <option value="RHD">RHD</option>
-                                        </select>
-                                    </div>
-                                </div>
-
-                                {/* UMH GUM */}
+                                {/* Type */}
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1">
-                                        UMH GUM <span className="text-red-500">*</span>
+                                        Type
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={data.type}
+                                        onChange={(e) => setData("type", e.target.value)}
+                                        className="w-full h-11 px-4 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6F42]/20 focus:border-[#1D6F42]"
+                                    />
+                                </div>
+
+                                {/* UMH */}
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                                        UMH <span className="text-red-500">*</span>
                                     </label>
                                     <input
                                         type="number"
                                         step="0.000001"
-                                        value={data.umh_gum}
-                                        onChange={(e) => setData("umh_gum", e.target.value)}
+                                        value={data.umh}
+                                        onChange={(e) => setData("umh", e.target.value)}
                                         className="w-full h-11 px-4 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6F42]/20 focus:border-[#1D6F42]"
                                     />
-                                    {errors.umh_gum && (
-                                        <p className="text-red-500 text-sm mt-1">{errors.umh_gum}</p>
+                                    {errors.umh && (
+                                        <p className="text-red-500 text-sm mt-1">{errors.umh}</p>
                                     )}
-                                </div>
-
-                                {/* UMH OCS */}
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-1">
-                                        UMH OCS
-                                    </label>
-                                    <input
-                                        type="number"
-                                        step="0.000001"
-                                        value={data.umh_ocs}
-                                        onChange={(e) => setData("umh_ocs", e.target.value)}
-                                        className="w-full h-11 px-4 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6F42]/20 focus:border-[#1D6F42]"
-                                    />
                                 </div>
 
                                 {/* Std Pack */}
@@ -215,58 +161,6 @@ export default function Edit({ assy, carLines }) {
                                     {errors.std_pack && (
                                         <p className="text-red-500 text-sm mt-1">{errors.std_pack}</p>
                                     )}
-                                </div>
-
-                                {/* CCT */}
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-1">
-                                        CCT
-                                    </label>
-                                    <input
-                                        type="number"
-                                        value={data.cct}
-                                        onChange={(e) => setData("cct", e.target.value)}
-                                        className="w-full h-11 px-4 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6F42]/20 focus:border-[#1D6F42]"
-                                    />
-                                </div>
-
-                                {/* Project Code */}
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-1">
-                                        Project Code
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={data.project_code}
-                                        onChange={(e) => setData("project_code", e.target.value)}
-                                        className="w-full h-11 px-4 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6F42]/20 focus:border-[#1D6F42]"
-                                    />
-                                </div>
-
-                                {/* Model Code */}
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-1">
-                                        Model Code
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={data.model_code}
-                                        onChange={(e) => setData("model_code", e.target.value)}
-                                        className="w-full h-11 px-4 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6F42]/20 focus:border-[#1D6F42]"
-                                    />
-                                </div>
-
-                                {/* Rank */}
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-1">
-                                        Rank
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={data.rank}
-                                        onChange={(e) => setData("rank", e.target.value)}
-                                        className="w-full h-11 px-4 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6F42]/20 focus:border-[#1D6F42]"
-                                    />
                                 </div>
 
                                 {/* Status */}

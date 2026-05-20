@@ -64,19 +64,19 @@ export default function AdminLayout({ title, children }) {
         <>
             <Head>
                 <title>{headTitle}</title>
-                <link rel="icon" type="image/png" sizes="32x32" href="/images/logo.png" />
-                <link rel="shortcut icon" type="image/png" href="/images/logo.png" />
+                <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+                <link rel="alternate icon" href="/favicon.ico" />
                 <meta name="csrf-token" content={usePage().props.csrf_token} />
             </Head>
 
-            <div className="min-h-screen bg-gray-50 flex">
+            <div className="flex min-h-screen bg-gray-50 text-gray-900 transition-colors duration-300 dark:bg-[#0b1120] dark:text-slate-100">
 
                 {/* Sidebar — fixed, tidak ikut flow */}
                 <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
                 {/* Main Content — diberi margin-left agar tidak tertimpa sidebar */}
                 <div
-                    className="flex flex-col flex-1 min-w-0"
+                    className="flex min-w-0 flex-1 flex-col"
                     style={{
                         marginLeft: offset,
                         transition: 'margin-left 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -86,8 +86,8 @@ export default function AdminLayout({ title, children }) {
                     <Topbar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
                     {/* Page Content */}
-                    <main className="flex-1 overflow-auto pt-20">
-                        {/* pt-16 = 64px, sesuaikan dengan tinggi Topbar */}
+                    <main className="flex-1 overflow-auto bg-gray-50 pt-16 transition-colors duration-300 dark:bg-[#0b1120]">
+                        {/* Sesuaikan dengan tinggi Topbar */}
                         {children}
                     </main>
                 </div>

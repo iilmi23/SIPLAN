@@ -5,7 +5,6 @@ import { Link, useForm } from "@inertiajs/react";
 export default function Edit({ carline }) {
     const { data, setData, put, processing, errors } = useForm({
         code: carline?.code || "",
-        description: carline?.description || "",
     });
 
     const submit = (e) => {
@@ -52,23 +51,6 @@ export default function Edit({ carline }) {
                                 />
                                 {errors.code && (
                                     <p className="text-red-500 text-sm mt-1">{errors.code}</p>
-                                )}
-                            </div>
-
-                            {/* Description */}
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                                    Description
-                                </label>
-                                <textarea
-                                    value={data.description}
-                                    onChange={(e) => setData("description", e.target.value)}
-                                    placeholder="Enter description or notes about this car line..."
-                                    rows={4}
-                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6F42]/20 focus:border-[#1D6F42]"
-                                />
-                                {errors.description && (
-                                    <p className="text-red-500 text-sm mt-1">{errors.description}</p>
                                 )}
                             </div>
 

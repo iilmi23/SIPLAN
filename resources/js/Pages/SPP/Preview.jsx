@@ -10,9 +10,13 @@ import {
 } from "@heroicons/react/24/outline";
 
 export default function SPPPreview({ sr, summary = {}, months = [], rows = [] }) {
-    const storageKey = `spp-draft-${sr.id}`;
+    const isCombined = sr?.is_combined === true;
+    const sourceBatchIds = sr?.source_batch_ids || [];
+    const storageKey = `spp-draft-${isCombined ? sr.upload_batch : sr.id}`;
     const [editableRows, setEditableRows] = useState(rows);
     const [saved, setSaved] = useState(false);
+    const [isSavingFixed, setIsSavingFixed] = useState(false);
+    const [notice, setNotice] = useState("");
 
     useEffect(() => {
         const raw = window.localStorage.getItem(storageKey);
@@ -75,6 +79,29 @@ export default function SPPPreview({ sr, summary = {}, months = [], rows = [] })
     const saveDraft = () => {
         window.localStorage.setItem(storageKey, JSON.stringify(editableRows));
         setSaved(true);
+        setNotice("");
+    };
+
+    const saveFixed = () => {
+        setIsSavingFixed(true);
+        setNotice("");
+
+        router.post(isCombined ? route("spp.storeCombined") : route("spp.store", sr.id), {
+            months,
+            rows: editableRows,
+            source_batch_ids: sourceBatchIds,
+        }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                window.localStorage.removeItem(storageKey);
+                setSaved(false);
+                setNotice("SPP fixed berhasil disimpan ke database.");
+            },
+            onError: () => {
+                setNotice("SPP fixed gagal disimpan. Cek data lalu coba lagi.");
+            },
+            onFinish: () => setIsSavingFixed(false),
+        });
     };
 
     const resetDraft = () => {
@@ -89,7 +116,7 @@ export default function SPPPreview({ sr, summary = {}, months = [], rows = [] })
             "HARNESS No.",
             "LEVEL",
             "ASSY CODE",
-            "CCT",
+            "Carline",
             "STD PACK",
             ...months.flatMap((month) => [`${month.label} BAL`, `${month.label} DEL`, `${month.label} PROD`]),
             "TOTAL",
@@ -97,10 +124,10 @@ export default function SPPPreview({ sr, summary = {}, months = [], rows = [] })
 
         const csvRows = editableRows.map((row) => [
             row.type,
-            row.part_number,
+            row.assy_number,
             row.level,
             row.assy_code,
-            row.cct,
+            row.carline,
             row.std_pack,
             ...months.flatMap((month) => {
                 const cell = row.months?.[month.period] || {};
@@ -141,6 +168,10 @@ export default function SPPPreview({ sr, summary = {}, months = [], rows = [] })
                             <CheckCircleIcon className="h-4 w-4" />
                             Save Draft
                         </button>
+                        <button type="button" onClick={saveFixed} disabled={isSavingFixed || editableRows.length === 0} className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0f3320] px-4 text-sm font-semibold text-white hover:bg-[#174b2e] disabled:cursor-not-allowed disabled:opacity-50">
+                            <CheckCircleIcon className="h-4 w-4" />
+                            {isSavingFixed ? "Saving..." : "Save Fixed"}
+                        </button>
                         <button type="button" onClick={exportCsv} className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#1D6F42]/30 bg-white px-4 text-sm font-semibold text-[#1D6F42] hover:bg-green-50">
                             <ArrowDownTrayIcon className="h-4 w-4" />
                             Export Fixed
@@ -151,6 +182,12 @@ export default function SPPPreview({ sr, summary = {}, months = [], rows = [] })
                 {saved && (
                     <div className="mb-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800">
                         Draft adjustment tersimpan di browser untuk upload ini.
+                    </div>
+                )}
+
+                {notice && (
+                    <div className="mb-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800">
+                        {notice}
                     </div>
                 )}
 
@@ -166,14 +203,19 @@ export default function SPPPreview({ sr, summary = {}, months = [], rows = [] })
                             <div className="mt-1 text-sm font-semibold">{sr.customer || "ALL CUSTOMER"}</div>
                             <div className="mt-1">Periode : {summary.period_range}</div>
                             <div className="mt-1 text-xs font-semibold text-[#0f5132]">
-                                SR: {sr.source_file || "-"}{sr.sheet_name ? ` / ${sr.sheet_name}` : ""}
+                            {isCombined ? "Combined SR" : "SR"}: {sr.source_file || "-"}{sr.sheet_name ? ` / ${sr.sheet_name}` : ""}
+                        </div>
+                        {isCombined && Array.isArray(sr.source_batches) && sr.source_batches.length > 0 && (
+                            <div className="mt-2 text-[11px] text-slate-600">
+                                {sr.source_batches.length} uploads combined: {sr.source_batches.map((batch) => batch.source_file).join(" | ")}
                             </div>
+                        )}
                         </div>
                         <div className="border-l border-slate-400 p-2 text-right">
                             <div>Print Date :</div>
                             <div className="font-semibold">{new Date().toLocaleDateString()}</div>
                             <div className="mt-2 text-slate-500">Records: {formatNumber(summary.total_records)}</div>
-                            <div className="text-slate-500">Parts: {formatNumber(summary.unique_parts)}</div>
+                            <div className="text-slate-500">Assy Numbers: {formatNumber(summary.unique_assy_numbers)}</div>
                         </div>
                     </div>
 
@@ -185,7 +227,7 @@ export default function SPPPreview({ sr, summary = {}, months = [], rows = [] })
                                     <ExcelTh rowSpan={3} sticky left={82} width={170}>HARNESS No.</ExcelTh>
                                     <ExcelTh rowSpan={3} sticky left={252} width={84}>LEVEL</ExcelTh>
                                     <ExcelTh rowSpan={3} sticky left={336} width={86}>ASSY CODE</ExcelTh>
-                                    <ExcelTh rowSpan={3} sticky left={422} width={58}>CCT.</ExcelTh>
+                                    <ExcelTh rowSpan={3} sticky left={422} width={58}>Carline</ExcelTh>
                                     <ExcelTh rowSpan={3} sticky left={480} width={70}>Std pack</ExcelTh>
                                     {months.map((month) => (
                                         <th key={`month-${month.period}`} colSpan={3} className={`sticky top-0 z-20 border border-slate-600 px-2 py-1.5 text-center font-bold text-slate-950 ${month.bucket === "firm" ? "bg-[#fff200]" : "bg-[#f4b183]"}`}>
@@ -197,7 +239,7 @@ export default function SPPPreview({ sr, summary = {}, months = [], rows = [] })
                                 <tr>
                                     {months.map((month) => (
                                         <th key={`range-${month.period}`} colSpan={3} className="sticky top-[25px] z-20 border border-slate-600 bg-[#d9ead3] px-2 py-1 text-center font-semibold">
-                                            {month.bucket === "firm" ? "ORDER" : "ESTIMATE"} {month.year}
+                                            {month.range_label || `${month.bucket === "firm" ? "ORDER" : "ESTIMATE"} ${month.year}`}
                                         </th>
                                     ))}
                                 </tr>
@@ -217,19 +259,19 @@ export default function SPPPreview({ sr, summary = {}, months = [], rows = [] })
                                         </td>
                                     </tr>
                                 ) : editableRows.map((row, index) => (
-                                    <tr key={`${row.part_number}-${index}`} className={index % 2 === 0 ? "bg-white" : "bg-[#eef7f1]"}>
+                                    <tr key={`${row.assy_number}-${index}`} className={index % 2 === 0 ? "bg-white" : "bg-[#eef7f1]"}>
                                         <EditableSticky value={row.type || row.carline || ""} left={0} width={82} onChange={(value) => updateMeta(index, "type", value)} />
-                                        <StickyTd left={82} width={170} className="font-bold text-[#0f5132]">{row.part_number}</StickyTd>
+                                        <StickyTd left={82} width={170} className="font-bold text-[#0f5132]">{row.assy_number}</StickyTd>
                                         <EditableSticky value={row.level || ""} left={252} width={84} onChange={(value) => updateMeta(index, "level", value)} />
                                         <EditableSticky value={row.assy_code || ""} left={336} width={86} onChange={(value) => updateMeta(index, "assy_code", value)} />
-                                        <EditableSticky value={row.cct || ""} left={422} width={58} onChange={(value) => updateMeta(index, "cct", value)} />
+                                        <EditableSticky value={row.cct || ""} left={422} width={58} onChange={(value) => updateMeta(index, "carline", value)} />
                                         <EditableSticky value={row.std_pack || ""} left={480} width={70} align="right" onChange={(value) => updateMeta(index, "std_pack", value)} />
                                         {months.flatMap((month) => {
                                             const cell = row.months?.[month.period] || {};
                                             return [
-                                                <QtyInput key={`${row.part_number}-${month.period}-bal`} value={cell.bal} onChange={(value) => updateQty(index, month.period, "bal", value)} muted />,
-                                                <QtyInput key={`${row.part_number}-${month.period}-del`} value={cell.del} onChange={(value) => updateQty(index, month.period, "del", value)} strong />,
-                                                <QtyInput key={`${row.part_number}-${month.period}-prod`} value={cell.prod} onChange={(value) => updateQty(index, month.period, "prod", value)} />,
+                                                <QtyInput key={`${row.assy_number}-${month.period}-bal`} value={cell.bal} onChange={(value) => updateQty(index, month.period, "bal", value)} muted />,
+                                                <QtyInput key={`${row.assy_number}-${month.period}-del`} value={cell.del} onChange={(value) => updateQty(index, month.period, "del", value)} strong />,
+                                                <QtyInput key={`${row.assy_number}-${month.period}-prod`} value={cell.prod} onChange={(value) => updateQty(index, month.period, "prod", value)} />,
                                             ];
                                         })}
                                         <td className="border border-slate-300 bg-[#ddebf7] px-2 py-1 text-right font-bold text-slate-950">

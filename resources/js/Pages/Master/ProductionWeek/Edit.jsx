@@ -20,40 +20,54 @@ const MONTH_MAP = {
 };
 
 export default function Edit({ productionWeek, customers = [] }) {
+    const expectedRange = buildProductionMonthRange(productionWeek.year, productionWeek.month_number);
+    const existingRangeMatchesRule =
+        productionWeek.start_date === expectedRange.start_date &&
+        productionWeek.end_date === expectedRange.end_date &&
+        Number(productionWeek.num_weeks ?? productionWeek.total_weeks ?? 0) === expectedRange.num_weeks;
+
     const { data, setData, processing, errors } = useForm({
         customer_id: productionWeek.customer_id ?? "",
         year: productionWeek.year,
         month_number: productionWeek.month_number,
         month_name: productionWeek.month_name,
-        start_date: productionWeek.start_date ?? "",
-        end_date: productionWeek.end_date ?? "",
-        num_weeks: productionWeek.num_weeks ?? productionWeek.total_weeks ?? 4,
+        start_date: expectedRange.start_date,
+        end_date: expectedRange.end_date,
+        num_weeks: expectedRange.num_weeks,
+        working_days: existingRangeMatchesRule ? buildInitialWorkingDays(productionWeek.weeks ?? []) : {},
     });
 
     const weekPreview = useMemo(() => {
-        const totalWeeks = Number(data.num_weeks);
-        if (!data.start_date || !totalWeeks) return [];
+        return buildWeekPreview(data.start_date, data.end_date, data.num_weeks, data.working_days);
+    }, [data.start_date, data.end_date, data.num_weeks, data.working_days]);
 
-        return Array.from({ length: totalWeeks }, (_, index) => {
-            const start = addDays(data.start_date, index * 7);
-            const end = index === totalWeeks - 1 && data.end_date
-                ? data.end_date
-                : addDays(start, 6);
-
-            return {
-                week_no: index + 1,
-                start,
-                end,
-            };
-        });
-    }, [data.start_date, data.end_date, data.num_weeks]);
+    const totalWorkingDays = weekPreview.reduce((sum, week) => sum + week.working_days.length, 0);
 
     const handleMonthChange = (value) => {
         const monthNumber = parseInt(value, 10);
+        const range = data.year && value ? buildProductionMonthRange(data.year, value) : null;
+
         setData((prev) => ({
             ...prev,
             month_number: value,
             month_name: MONTH_MAP[monthNumber] ?? "",
+            start_date: range?.start_date ?? prev.start_date,
+            end_date: range?.end_date ?? prev.end_date,
+            num_weeks: range?.num_weeks ?? prev.num_weeks,
+            working_days: {},
+        }));
+    };
+
+    const handleYearChange = (value) => {
+        const range = value && data.month_number ? buildProductionMonthRange(value, data.month_number) : null;
+
+        setData((prev) => ({
+            ...prev,
+            year: value,
+            start_date: range?.start_date ?? prev.start_date,
+            end_date: range?.end_date ?? prev.end_date,
+            num_weeks: range?.num_weeks ?? prev.num_weeks,
+            working_days: {},
         }));
     };
 
@@ -69,20 +83,36 @@ export default function Edit({ productionWeek, customers = [] }) {
             params.set("customer_id", String(productionWeek.customer_id));
         }
 
-        router.put(`/production-week/update?${params.toString()}`, data, {
+        router.put(`/production-week/update?${params.toString()}`, {
+            ...data,
+            working_days: collectWorkingDays(weekPreview),
+        }, {
             preserveScroll: true,
         });
     };
 
-    const currentCustomer = customers.find((customer) => String(customer.id) === String(productionWeek.customer_id));
-    const nextCustomer = customers.find((customer) => String(customer.id) === String(data.customer_id));
+    const toggleWorkingDay = (weekNo, date) => {
+        setData((prev) => {
+            const weekKey = String(weekNo);
+            const previewWeek = buildWeekPreview(prev.start_date, prev.end_date, prev.num_weeks, prev.working_days)
+                .find((week) => week.week_no === weekNo);
+            const currentDays = new Set(prev.working_days?.[weekKey] ?? previewWeek?.working_days ?? []);
+
+            currentDays.has(date) ? currentDays.delete(date) : currentDays.add(date);
+
+            return {
+                ...prev,
+                working_days: {
+                    ...(prev.working_days ?? {}),
+                    [weekKey]: Array.from(currentDays).sort(),
+                },
+            };
+        });
+    };
+
     const isLocked = Number(productionWeek.total_weeks ?? 0) > 0;
 
     const beforePeriod = `${productionWeek.month_name} ${productionWeek.year}`;
-    const afterPeriod = `${data.month_name || "-"} ${data.year || "-"}`;
-    const beforeCustomer = currentCustomer ? `${currentCustomer.name} (${currentCustomer.code})` : "Global";
-    const afterCustomer = nextCustomer ? `${nextCustomer.name} (${nextCustomer.code})` : "Global";
-    const beforeTotalWeeks = Number(productionWeek.total_weeks ?? productionWeek.num_weeks ?? 0);
     const afterTotalWeeks = Number(data.num_weeks || 0);
 
     return (
@@ -119,6 +149,7 @@ export default function Edit({ productionWeek, customers = [] }) {
                             <div className="flex flex-wrap gap-2">
                                 <SummaryPill label="Current" value={beforePeriod} />
                                 <SummaryPill label="Weeks" value={`${afterTotalWeeks} weeks`} />
+                                <SummaryPill label="Working Days" value={`${totalWorkingDays} days`} />
                             </div>
                         </div>
 
@@ -141,7 +172,7 @@ export default function Edit({ productionWeek, customers = [] }) {
                                                     <option value="">Global (no customer)</option>
                                                     {customers.map((customer) => (
                                                         <option key={customer.id} value={customer.id}>
-                                                            {customer.name} ({customer.code})
+                                                            {customer.code}
                                                         </option>
                                                     ))}
                                                 </select>
@@ -154,7 +185,7 @@ export default function Edit({ productionWeek, customers = [] }) {
                                                 min={2020}
                                                 max={2030}
                                                 value={data.year}
-                                                onChange={(e) => setData("year", e.target.value)}
+                                                onChange={(e) => handleYearChange(e.target.value)}
                                                 className={inputCls(errors.year)}
                                             />
                                         </FormField>
@@ -178,12 +209,12 @@ export default function Edit({ productionWeek, customers = [] }) {
                                             label="Start Date"
                                             required
                                             error={errors.start_date}
-                                            hint="Tanggal awal untuk week pertama."
+                                            // hint="Tanggal awal untuk week pertama."
                                         >
                                             <input
                                                 type="date"
                                                 value={data.start_date}
-                                                onChange={(e) => setData("start_date", e.target.value)}
+                                                readOnly
                                                 className={inputCls(errors.start_date)}
                                             />
                                         </FormField>
@@ -192,12 +223,12 @@ export default function Edit({ productionWeek, customers = [] }) {
                                             label="End Date"
                                             required
                                             error={errors.end_date}
-                                            hint="Tanggal akhir untuk range bulan ini."
+                                            // hint="Tanggal akhir untuk range bulan ini."
                                         >
                                             <input
                                                 type="date"
                                                 value={data.end_date}
-                                                onChange={(e) => setData("end_date", e.target.value)}
+                                                readOnly
                                                 className={inputCls(errors.end_date)}
                                             />
                                         </FormField>
@@ -208,11 +239,11 @@ export default function Edit({ productionWeek, customers = [] }) {
                                                     <button
                                                         key={weekCount}
                                                         type="button"
-                                                        onClick={() => setData("num_weeks", weekCount)}
+                                                        disabled
                                                         className={`h-10 rounded-lg text-sm font-semibold border transition-all ${
                                                             Number(data.num_weeks) === weekCount
                                                                 ? "bg-[#1D6F42] text-white border-[#1D6F42]"
-                                                                : "bg-white text-gray-600 border-gray-200 hover:border-[#1D6F42]/40"
+                                                                : "bg-white text-gray-400 border-gray-200"
                                                         }`}
                                                     >
                                                         {weekCount}
@@ -226,41 +257,53 @@ export default function Edit({ productionWeek, customers = [] }) {
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                             <InfoStrip label="Start Date" value={formatDate(data.start_date)} />
                                             <InfoStrip label="End Date" value={formatDate(data.end_date)} />
-                                            <InfoStrip label="Total Weeks" value={String(afterTotalWeeks)} />
+                                            <InfoStrip label="Working Days" value={`${totalWorkingDays} days`} />
                                         </div>
                                     </div>
                                 </div>
 
                                 <aside className="border-t xl:border-t-0 xl:border-l border-gray-100 bg-gray-50/70 p-6 lg:p-8">
                                     <div>
-                                        <h2 className="text-sm font-semibold text-gray-900">Change Summary</h2>
-                                        <p className="mt-1 text-sm text-gray-500">Review perubahan sebelum disimpan.</p>
+                                        <h2 className="text-sm font-semibold text-gray-900">Preview Week</h2>
+                                        <p className="mt-1 text-sm text-gray-500">Cek dan ubah working days sebelum disimpan.</p>
                                     </div>
 
-                                    <div className="mt-5 divide-y divide-gray-200/80">
-                                        <DiffRow label="Customer" before={beforeCustomer} after={afterCustomer} />
-                                        <DiffRow label="Periode" before={beforePeriod} after={afterPeriod} />
-                                        <DiffRow
-                                            label="Date Range"
-                                            before={`${formatDate(productionWeek.start_date)} ~ ${formatDate(productionWeek.end_date)}`}
-                                            after={`${formatDate(data.start_date)} ~ ${formatDate(data.end_date)}`}
-                                        />
-                                        <DiffRow label="Total Weeks" before={String(beforeTotalWeeks)} after={String(afterTotalWeeks)} />
-                                    </div>
-
-                                    <div className="mt-6 border-t border-gray-200/80 pt-5">
-                                        <h3 className="text-sm font-semibold text-gray-900">Preview Week</h3>
-                                        <div className="mt-3 space-y-2">
-                                            {weekPreview.map((week) => (
-                                                <div key={week.week_no} className="flex items-center justify-between gap-3 border-b border-gray-200/70 py-2.5 last:border-b-0">
-                                                    <p className="text-sm font-semibold text-[#1D6F42]">Week {week.week_no}</p>
+                                    <div className="mt-5 space-y-2">
+                                        {weekPreview.map((week) => (
+                                            <div key={week.week_no} className="border-b border-gray-200/70 py-3 last:border-b-0">
+                                                <div className="mb-3 flex items-center justify-between gap-3">
+                                                    <div>
+                                                        <p className="text-sm font-semibold text-[#1D6F42]">Week {week.week_no}</p>
+                                                        <p className="text-xs text-gray-500">{week.working_days.length} working days</p>
+                                                    </div>
                                                     <p className="text-right text-xs font-mono text-gray-700">
                                                         {formatDate(week.start)}<br />
                                                         {formatDate(week.end)}
                                                     </p>
                                                 </div>
-                                            ))}
-                                        </div>
+                                                <div className="grid grid-cols-4 gap-2">
+                                                    {week.days.map((day) => (
+                                                        <label
+                                                            key={day.date}
+                                                            className={`flex cursor-pointer flex-col rounded-lg border px-2 py-1.5 transition-all ${
+                                                                day.checked
+                                                                    ? "border-[#1D6F42] bg-emerald-50 text-[#1D6F42]"
+                                                                    : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+                                                            }`}
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={day.checked}
+                                                                onChange={() => toggleWorkingDay(week.week_no, day.date)}
+                                                                className="sr-only"
+                                                            />
+                                                            <span className="text-[10px] font-medium uppercase">{day.dayName}</span>
+                                                            <span className="mt-0.5 text-sm font-semibold">{day.dayNumber}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 </aside>
                             </div>
@@ -327,28 +370,101 @@ function InfoStrip({ label, value }) {
     );
 }
 
-function DiffRow({ label, before, after }) {
-    const changed = String(before ?? "") !== String(after ?? "");
-
-    return (
-        <div className="py-3">
-            <p className="text-xs font-medium text-gray-400">{label}</p>
-            {changed ? (
-                <div className="mt-1 space-y-1">
-                    <p className="text-sm text-red-500 line-through">{before ?? "-"}</p>
-                    <p className="text-sm font-semibold text-[#1D6F42]">{after ?? "-"}</p>
-                </div>
-            ) : (
-                <p className="mt-1 text-sm font-medium text-gray-700">{after ?? "-"}</p>
-            )}
-        </div>
-    );
-}
-
 const addDays = (value, days) => {
     const date = new Date(`${value}T00:00:00`);
     date.setDate(date.getDate() + days);
     return toDateInput(date);
+};
+
+const productionMonthStart = (year, month) => {
+    const firstOfMonth = new Date(Number(year), Number(month) - 1, 1);
+    const start = new Date(firstOfMonth);
+    const day = start.getDay() || 7;
+    start.setDate(start.getDate() + 1 - day);
+
+    if (start.getMonth() !== firstOfMonth.getMonth()) {
+        const previousMonthLastDay = new Date(firstOfMonth.getFullYear(), firstOfMonth.getMonth(), 0).getDate();
+        const previousMonthRemainingDays = previousMonthLastDay - start.getDate() + 1;
+
+        if (previousMonthRemainingDays > 1) {
+            start.setDate(start.getDate() + 7);
+        }
+    }
+
+    return start;
+};
+
+const buildProductionMonthRange = (year, month) => {
+    const start = productionMonthStart(year, month);
+    const nextMonth = Number(month) === 12 ? 1 : Number(month) + 1;
+    const nextYear = Number(month) === 12 ? Number(year) + 1 : Number(year);
+    const nextStart = productionMonthStart(nextYear, nextMonth);
+    const end = new Date(nextStart);
+    end.setDate(end.getDate() - 1);
+
+    return {
+        start_date: toDateInput(start),
+        end_date: toDateInput(end),
+        num_weeks: Math.round((end - start) / 86400000 / 7) + 1,
+    };
+};
+
+const buildInitialWorkingDays = (weeks) => weeks.reduce((result, week) => ({
+    ...result,
+    [week.week_no]: week.working_days ?? [],
+}), {});
+
+const buildWeekPreview = (startDate, endDate, totalWeeks, selectedWorkingDays = {}) => {
+    const count = Number(totalWeeks);
+    if (!startDate || !count) return [];
+
+    return Array.from({ length: count }, (_, index) => {
+        const weekNo = index + 1;
+        const start = addDays(startDate, index * 7);
+        const end = index === count - 1 && endDate ? endDate : addDays(start, 6);
+        const days = datesBetween(start, end);
+        const weekKey = String(weekNo);
+        const hasCustomSelection = Object.prototype.hasOwnProperty.call(selectedWorkingDays ?? {}, weekKey);
+        const selected = new Set(hasCustomSelection ? selectedWorkingDays[weekKey] : days.filter((day) => day.isWeekday).map((day) => day.date));
+
+        return {
+            week_no: weekNo,
+            start,
+            end,
+            working_days: days.filter((day) => selected.has(day.date)).map((day) => day.date),
+            days: days.map((day) => ({
+                ...day,
+                checked: selected.has(day.date),
+            })),
+        };
+    });
+};
+
+const collectWorkingDays = (weeks) => weeks.reduce((result, week) => ({
+    ...result,
+    [week.week_no]: week.working_days,
+}), {});
+
+const datesBetween = (startDate, endDate) => {
+    const dates = [];
+    const current = new Date(`${startDate}T00:00:00`);
+    const end = new Date(`${endDate}T00:00:00`);
+
+    while (current <= end) {
+        const date = toDateInput(current);
+        const day = current.getDay();
+
+        dates.push({
+            date,
+            dayName: current.toLocaleDateString("id-ID", { weekday: "short" }),
+            dayNumber: String(current.getDate()).padStart(2, "0"),
+            isWeekday: day >= 1 && day <= 5,
+        });
+
+        current.setDate(current.getDate() + 1);
+    }
+
+    return dates;
 };
 
 const pad = (value) => String(value).padStart(2, "0");

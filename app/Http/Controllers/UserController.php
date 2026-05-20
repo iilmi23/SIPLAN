@@ -25,7 +25,13 @@ class UserController extends Controller
 
     public function create()
     {
-        return Inertia::render('Admin/Users/Create');
+        return Inertia::render('Admin/Users/Create', [
+            'permissionCatalog' => User::permissionCatalog(),
+            'roleDefaults' => [
+                'admin' => User::defaultPermissionsForRole('admin'),
+                'ppc' => User::defaultPermissionsForRole('ppc'),
+            ],
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -35,6 +41,8 @@ class UserController extends Controller
             'email' => 'required|string|lowercase|email|max:255|unique:'.User::class,
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
             'role' => 'required|in:admin,ppc',
+            'permissions' => ['nullable', 'array'],
+            'permissions.*' => ['string', 'in:'.implode(',', User::permissionKeys())],
         ]);
 
         $user = User::create([
@@ -42,6 +50,9 @@ class UserController extends Controller
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'role' => $request->role,
+            'permissions' => $this->normalizePermissions(
+                $request->input('permissions', User::defaultPermissionsForRole($request->role))
+            ),
             'email_verified_at' => now(),
         ]);
 
@@ -51,14 +62,26 @@ class UserController extends Controller
     public function show(User $user)
     {
         return Inertia::render('Admin/Users/Show', [
-            'user' => $user->only(['id', 'name', 'email', 'role', 'created_at']),
+            'user' => array_merge(
+                $user->only(['id', 'name', 'email', 'role', 'created_at']),
+                ['permissions' => $user->permissions()]
+            ),
+            'permissionCatalog' => User::permissionCatalog(),
         ]);
     }
 
     public function edit(User $user)
     {
         return Inertia::render('Admin/Users/Edit', [
-            'user' => $user->only(['id', 'name', 'email', 'role']),
+            'user' => array_merge(
+                $user->only(['id', 'name', 'email', 'role']),
+                ['permissions' => $user->permissions()]
+            ),
+            'permissionCatalog' => User::permissionCatalog(),
+            'roleDefaults' => [
+                'admin' => User::defaultPermissionsForRole('admin'),
+                'ppc' => User::defaultPermissionsForRole('ppc'),
+            ],
         ]);
     }
 
@@ -69,12 +92,17 @@ class UserController extends Controller
             'email' => 'required|string|lowercase|email|max:255|unique:'.User::class.',email,'.$user->id,
             'role' => 'required|in:admin,ppc',
             'password' => ['nullable', 'confirmed', Rules\Password::defaults()],
+            'permissions' => ['nullable', 'array'],
+            'permissions.*' => ['string', 'in:'.implode(',', User::permissionKeys())],
         ]);
 
         $user->update([
             'name' => $request->name,
             'email' => $request->email,
             'role' => $request->role,
+            'permissions' => $this->normalizePermissions(
+                $request->input('permissions', User::defaultPermissionsForRole($request->role))
+            ),
         ]);
 
         if ($request->filled('password')) {
@@ -96,5 +124,14 @@ class UserController extends Controller
         $user->delete();
 
         return redirect()->route('users.index')->with('success', 'User deleted successfully.');
+    }
+
+    private function normalizePermissions(array $permissions): array
+    {
+        return collect($permissions)
+            ->intersect(User::permissionKeys())
+            ->unique()
+            ->values()
+            ->all();
     }
 }

@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
             AdminSeeder::class,
             YNACustomerSeeder::class,
             // ProductionWeekSeeder::class,
+            PortSeeder::class,
         ]);
     }
 }

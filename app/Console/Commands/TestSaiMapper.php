@@ -92,22 +92,22 @@ class TestSaiMapper extends Command
             if (!empty($result)) {
                 $firm = count(array_filter($result, fn($r) => ($r['order_type'] ?? '') === 'FIRM'));
                 $forecast = count(array_filter($result, fn($r) => ($r['order_type'] ?? '') === 'FORECAST'));
-                $parts = count(array_unique(array_column($result, 'part_number')));
+                $uniqueAssyNumbers = count(array_unique(array_column($result, 'assy_number')));
                 $qty = array_sum(array_column($result, 'qty'));
 
                 $this->info("📊 Summary:");
                 $this->line("   FIRM records: $firm");
                 $this->line("   FORECAST records: $forecast");
-                $this->line("   Unique parts: $parts");
+                $this->line("   Unique assy numbers: $uniqueAssyNumbers");
                 $this->line("   Total QTY: " . number_format($qty));
                 
                 $this->info("📋 Sample records (first 5):");
                 foreach (array_slice($result, 0, 5) as $i => $item) {
                     $extra = json_decode($item['extra'] ?? '{}', true);
                     $this->line(sprintf(
-                        "   [%d] Part: %s, Qty: %d, Type: %s, ETA: %s, PO: %s",
+                        "   [%d] Assy: %s, Qty: %d, Type: %s, ETA: %s, PO: %s",
                         $i,
-                        $item['part_number'],
+                        $item['assy_number'],
                         $item['qty'],
                         $item['order_type'],
                         $item['eta'],

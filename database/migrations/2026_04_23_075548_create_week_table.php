@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('month_name');
             $table->integer('week_no');
             $table->date('week_start');
+            $table->date('end_date');
             $table->integer('num_weeks');
             $table->timestamps();
             

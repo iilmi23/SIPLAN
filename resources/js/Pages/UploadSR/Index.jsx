@@ -37,7 +37,10 @@ export default function Index() {
     const [showGridlines, setShowGridlines] = useState(true);
     const [fullscreen, setFullscreen] = useState(false);
     const [isReadingFile, setIsReadingFile] = useState(false);
+    const [isCheckingPreview, setIsCheckingPreview] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
+    const [previewResult, setPreviewResult] = useState(null);
+    const [showAssyWarning, setShowAssyWarning] = useState(false);
     const [alert, setAlert] = useState({ show: false, type: "success", message: "" });
 
     const selectedCustomerData = useMemo(
@@ -52,7 +55,7 @@ export default function Index() {
         ? sheets[selectedSheetIndex]
         : "";
     const validationErrors = normalizeErrors(errors);
-    const isBusy = isReadingFile || isUploading;
+    const isBusy = isReadingFile || isCheckingPreview || isUploading;
     const canUpload = Boolean(
         selectedCustomer &&
         file &&
@@ -100,6 +103,8 @@ export default function Index() {
         setWorkbook(null);
         setSheets([]);
         setSelectedSheet("");
+        setPreviewResult(null);
+        setShowAssyWarning(false);
 
         if (fileInputRef.current) {
             fileInputRef.current.value = "";
@@ -117,6 +122,8 @@ export default function Index() {
     const handleCustomerChange = (event) => {
         setSelectedCustomer(event.target.value);
         setSelectedPort("");
+        setPreviewResult(null);
+        setShowAssyWarning(false);
     };
 
     const handleFileChange = (event) => {
@@ -171,27 +178,7 @@ export default function Index() {
         reader.readAsArrayBuffer(uploadedFile);
     };
 
-    const handleSubmit = () => {
-        if (!selectedCustomer) {
-            notify("error", "Pilih customer terlebih dahulu.");
-            return;
-        }
-
-        if (requiresPort && !selectedPort) {
-            notify("error", `Port wajib dipilih untuk customer ${selectedCustomerData?.code || selectedCustomerData?.name}.`);
-            return;
-        }
-
-        if (!file) {
-            notify("error", "Pilih file Excel terlebih dahulu.");
-            return;
-        }
-
-        if (selectedSheet === "" || Number.isNaN(selectedSheetIndex)) {
-            notify("error", "Pilih worksheet yang ingin diupload.");
-            return;
-        }
-
+    const buildSrFormData = () => {
         const formData = new FormData();
         formData.append("customer", selectedCustomer);
         if (selectedPort) {
@@ -200,13 +187,86 @@ export default function Index() {
         formData.append("file", file);
         formData.append("sheet", selectedSheetIndex);
 
+        return formData;
+    };
+
+    const validateUploadInput = () => {
+        if (!selectedCustomer) {
+            notify("error", "Pilih customer terlebih dahulu.");
+            return false;
+        }
+
+        if (requiresPort && !selectedPort) {
+            notify("error", `Port wajib dipilih untuk customer ${selectedCustomerData?.code || selectedCustomerData?.name}.`);
+            return false;
+        }
+
+        if (!file) {
+            notify("error", "Pilih file Excel terlebih dahulu.");
+            return false;
+        }
+
+        if (selectedSheet === "" || Number.isNaN(selectedSheetIndex)) {
+            notify("error", "Pilih worksheet yang ingin diupload.");
+            return false;
+        }
+
+        return true;
+    };
+
+    const handleSubmit = async () => {
+        if (!validateUploadInput()) {
+            return;
+        }
+
+        setIsCheckingPreview(true);
+
+        try {
+            const response = await fetch(route("sr.preview"), {
+                method: "POST",
+                headers: {
+                    "X-CSRF-TOKEN": getCsrfToken(),
+                    "Accept": "application/json",
+                },
+                body: buildSrFormData(),
+            });
+            const payload = await response.json().catch(() => null);
+
+            if (!response.ok || !payload?.success) {
+                throw new Error(payload?.error || "Preview SR gagal diproses.");
+            }
+
+            const result = payload.data || {};
+            setPreviewResult(result);
+
+            if (result.has_unknown_assy_numbers) {
+                setShowAssyWarning(true);
+                notify("warning", "Ada assy number yang belum ada di master assy. Cek daftar sebelum lanjut upload.");
+                return;
+            }
+
+            uploadSr();
+        } catch (error) {
+            notify("error", error.message || "Preview SR gagal diproses.");
+        } finally {
+            setIsCheckingPreview(false);
+        }
+    };
+
+    const uploadSr = () => {
+        if (!validateUploadInput()) {
+            return;
+        }
+
+        setShowAssyWarning(false);
+
         setIsUploading(true);
 
         const uploadTimeout = window.setTimeout(() => {
             notify("warning", "Upload masih diproses. File besar bisa memerlukan beberapa menit.");
         }, 120000);
 
-        router.post(route("sr.upload"), formData, {
+        router.post(route("sr.upload"), buildSrFormData(), {
             forceFormData: true,
             preserveScroll: true,
             onSuccess: (page) => {
@@ -268,11 +328,13 @@ export default function Index() {
                     <ValidationAlert errors={validationErrors} />
                 )}
 
-                {isUploading && (
+                {(isCheckingPreview || isUploading) && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20">
                         <div className="flex items-center gap-3 rounded-xl bg-white p-6 shadow-xl">
                             <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#1D6F42] border-t-transparent" />
-                            <span className="text-sm font-medium text-gray-700">Uploading SR...</span>
+                            <span className="text-sm font-medium text-gray-700">
+                                {isCheckingPreview ? "Checking master assy..." : "Uploading SR..."}
+                            </span>
                         </div>
                     </div>
                 )}
@@ -431,7 +493,7 @@ export default function Index() {
                                         className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#1D6F42] px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#185c38] disabled:cursor-not-allowed disabled:opacity-50"
                                     >
                                         <CloudArrowUpIcon className="h-4 w-4" />
-                                        {isUploading ? "Uploading..." : "Upload SR"}
+                                        {isCheckingPreview ? "Checking..." : isUploading ? "Uploading..." : "Upload SR"}
                                     </button>
                                     <button
                                         type="button"
@@ -466,6 +528,15 @@ export default function Index() {
                     </div>
                 </div>
             </div>
+
+            {showAssyWarning && previewResult && (
+                <UnknownAssyModal
+                    preview={previewResult}
+                    onCancel={() => setShowAssyWarning(false)}
+                    onConfirm={uploadSr}
+                    disabled={isUploading}
+                />
+            )}
 
             <style>{`
                 @keyframes slideDown {
@@ -652,6 +723,97 @@ function ValidationAlert({ errors }) {
     );
 }
 
+function UnknownAssyModal({ preview, onCancel, onConfirm, disabled }) {
+    const unknownAssyNumbers = preview?.unknown_assy_numbers || [];
+    const visibleAssyNumbers = unknownAssyNumbers.slice(0, 30);
+    const hiddenCount = Math.max(unknownAssyNumbers.length - visibleAssyNumbers.length, 0);
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+            <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+                <div className="border-b border-amber-100 bg-amber-50 px-6 py-5">
+                    <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                            <ExclamationTriangleIcon className="h-6 w-6" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-semibold text-gray-900">Assy belum ada di master</h2>
+                            <p className="mt-1 text-sm text-gray-700">
+                                SR bisa tetap diupload, tapi baris ini akan tersimpan sebagai unmapped sampai master assy dilengkapi.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="space-y-4 px-6 py-5">
+                    <div className="grid gap-3 sm:grid-cols-3">
+                        <PreviewMetric label="Total records" value={preview.total_records} />
+                        <PreviewMetric label="Unique assy" value={preview.unique_assy_numbers} />
+                        <PreviewMetric label="Unmapped assy" value={unknownAssyNumbers.length} tone="warning" />
+                    </div>
+
+                    <div>
+                        <div className="mb-2 flex items-center justify-between gap-3">
+                            <p className="text-sm font-semibold text-gray-900">Daftar assy unknown</p>
+                            <p className="text-xs text-gray-500">{unknownAssyNumbers.length} assy</p>
+                        </div>
+                        <div className="max-h-64 overflow-auto rounded-xl border border-gray-200 bg-gray-50 p-3">
+                            <div className="flex flex-wrap gap-2">
+                                {visibleAssyNumbers.map((assyNumber) => (
+                                    <span
+                                        key={assyNumber}
+                                        className="rounded-lg border border-amber-200 bg-white px-2.5 py-1 font-mono text-xs font-semibold text-amber-800"
+                                    >
+                                        {assyNumber}
+                                    </span>
+                                ))}
+                                {hiddenCount > 0 && (
+                                    <span className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-semibold text-gray-600">
+                                        +{hiddenCount} lainnya
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex flex-col-reverse gap-3 border-t border-gray-100 bg-gray-50 px-6 py-4 sm:flex-row sm:justify-end">
+                    <button
+                        type="button"
+                        onClick={onCancel}
+                        disabled={disabled}
+                        className="inline-flex h-11 items-center justify-center rounded-xl border border-gray-200 bg-white px-5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
+                    >
+                        Batal dulu
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onConfirm}
+                        disabled={disabled}
+                        className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#1D6F42] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#185c38] disabled:opacity-50"
+                    >
+                        <CloudArrowUpIcon className="h-4 w-4" />
+                        {disabled ? "Uploading..." : "Lanjut upload"}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function PreviewMetric({ label, value, tone = "default" }) {
+    const isWarning = tone === "warning";
+
+    return (
+        <div className={`rounded-xl border px-4 py-3 ${isWarning ? "border-amber-200 bg-amber-50" : "border-gray-200 bg-white"}`}>
+            <p className={`text-xs font-medium ${isWarning ? "text-amber-700" : "text-gray-500"}`}>{label}</p>
+            <p className={`mt-1 text-xl font-semibold ${isWarning ? "text-amber-800" : "text-gray-900"}`}>
+                {formatNumber(value)}
+            </p>
+        </div>
+    );
+}
+
 function normalizeErrors(errors) {
     if (!errors || typeof errors !== "object") return [];
 
@@ -668,6 +830,14 @@ function formatServerErrors(serverErrors) {
     }
 
     return normalized.join("\n");
+}
+
+function getCsrfToken() {
+    return document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
+}
+
+function formatNumber(value) {
+    return Number(value || 0).toLocaleString("en-US");
 }
 
 const inputClass =

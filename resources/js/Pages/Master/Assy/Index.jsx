@@ -255,7 +255,7 @@ export default function Index({ assy, carlines = [], filters = {}, flash: propFl
                                     Assy Master
                                 </h1>
                                 <p className="text-sm text-gray-500 mt-1">
-                                    Kelola part number, assy code, car line, UMH, dan status master assy.
+                                    Kelola assy number, assy code, car line, UMH, dan status master assy.
                                 </p>
                             </div>
 
@@ -299,7 +299,7 @@ export default function Index({ assy, carlines = [], filters = {}, flash: propFl
                                         value={search}
                                         onChange={(event) => setSearch(event.target.value)}
                                         className="w-full h-11 pl-10 pr-24 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1D6F42]/20 focus:border-[#1D6F42] transition-all"
-                                        placeholder="Search part number, assy code, or level..."
+                                        placeholder="Search assy number, assy code, or level..."
                                     />
                                     {search && (
                                         <button
@@ -420,50 +420,50 @@ export default function Index({ assy, carlines = [], filters = {}, flash: propFl
                         )}
                     </div>
 
-                    <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-gray-50">
-                        <table className="w-full min-w-[1380px] table-fixed">
+                    <div className="overflow-hidden">
+                        <table className="w-full table-fixed">
                             <colgroup>
-                                <col className="w-[64px]" />
-                                <col className="w-[210px]" />
-                                <col className="w-[150px]" />
-                                <col className="w-[96px]" />
-                                <col className="w-[160px]" />
-                                <col className="w-[120px]" />
-                                <col className="w-[120px]" />
-                                <col className="w-[120px]" />
-                                <col className="w-[130px]" />
-                                <col className="w-[240px]" />
+                                <col className="w-[4%]" />
+                                <col className="w-[18%]" />
+                                <col className="w-[10%]" />
+                                <col className="w-[9%]" />
+                                <col className="w-[9%]" />
+                                <col className="w-[10%]" />
+                                <col className="w-[9%]" />
+                                <col className="w-[8%]" />
+                                <col className="w-[12%]" />
+                                <col className="w-[9%]" />
                             </colgroup>
                             <thead>
                                 <tr className="bg-gray-100/80 border-b border-gray-200">
-                                    <th className="px-5 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                                    <th className="px-2 py-3 text-left text-[11px] font-bold text-gray-700 uppercase tracking-wide border-r border-gray-200">
                                         #
                                     </th>
-                                    <th className="px-5 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200">
-                                        Part Number
+                                    <th className="px-3 py-3 text-left text-[11px] font-bold text-gray-700 uppercase tracking-wide border-r border-gray-200">
+                                        Assy Number
                                     </th>
-                                    <th className="px-5 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200">
-                                        Assy Code
-                                    </th>
-                                    <th className="px-5 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200">
-                                        Level
-                                    </th>
-                                    <th className="px-5 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                                    <th className="px-3 py-3 text-left text-[11px] font-bold text-gray-700 uppercase tracking-wide border-r border-gray-200">
                                         Car Line
                                     </th>
-                                    <th className="px-5 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                                    <th className="px-3 py-3 text-left text-[11px] font-bold text-gray-700 uppercase tracking-wide border-r border-gray-200">
                                         Type
                                     </th>
-                                    <th className="px-5 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200">
-                                        UMH
+                                    <th className="px-3 py-3 text-left text-[11px] font-bold text-gray-700 uppercase tracking-wide border-r border-gray-200">
+                                        Level
                                     </th>
-                                    <th className="px-5 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                                    <th className="px-3 py-3 text-left text-[11px] font-bold text-gray-700 uppercase tracking-wide border-r border-gray-200">
+                                        Assy Code
+                                    </th>
+                                    <th className="px-3 py-3 text-right text-[11px] font-bold text-gray-700 uppercase tracking-wide border-r border-gray-200">
                                         Std Pack
                                     </th>
-                                    <th className="px-5 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                                    <th className="px-3 py-3 text-right text-[11px] font-bold text-gray-700 uppercase tracking-wide border-r border-gray-200">
+                                        UMH
+                                    </th>
+                                    <th className="px-3 py-3 text-center text-[11px] font-bold text-gray-700 uppercase tracking-wide border-r border-gray-200">
                                         Status
                                     </th>
-                                    <th className="px-5 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                                    <th className="px-3 py-3 text-center text-[11px] font-bold text-gray-700 uppercase tracking-wide">
                                         Actions
                                     </th>
                                 </tr>
@@ -477,51 +477,53 @@ export default function Index({ assy, carlines = [], filters = {}, flash: propFl
 
                                         return (
                                             <tr key={assyItem.id} className="hover:bg-gray-50/80 transition-colors">
-                                                <td className="px-5 py-4 text-sm text-gray-500 font-medium tabular-nums border-r border-gray-100">
+                                                <td className="px-2 py-3 text-xs text-gray-500 font-medium tabular-nums border-r border-gray-100">
                                                     {rowNumber.toString().padStart(2, "0")}
                                                 </td>
-                                                <td className="px-5 py-4 border-r border-gray-100">
+                                                <td className="px-3 py-3 border-r border-gray-100 overflow-hidden">
                                                     <div className="min-w-0">
-                                                        <p className="truncate font-mono text-sm font-semibold text-gray-900">
-                                                            {assyItem.part_number || "-"}
+                                                        <p className="truncate font-mono text-xs font-semibold text-gray-900" title={assyItem.assy_number || "-"}>
+                                                            {assyItem.assy_number || "-"}
                                                         </p>
                                                         <p className="mt-0.5 text-xs text-gray-400">
                                                             ID #{assyItem.id}
                                                         </p>
                                                     </div>
                                                 </td>
-                                                <td className="px-5 py-4 text-sm text-gray-700 border-r border-gray-100">
-                                                    <span className="block truncate font-medium">
-                                                        {assyItem.assy_code || "-"}
+                                                <td className="px-3 py-3 border-r border-gray-100 overflow-hidden">
+                                                    <span className="inline-flex max-w-full px-2 py-1 rounded-lg bg-green-50 text-[#1D6F42] text-xs font-medium border border-green-100">
+                                                        <span className="truncate" title={carlineLabel}>{carlineLabel}</span>
                                                     </span>
                                                 </td>
-                                                <td className="px-5 py-4 text-sm text-gray-600 border-r border-gray-100">
-                                                    <span className="inline-flex min-w-9 justify-center rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">
-                                                        {assyItem.level || "-"}
-                                                    </span>
-                                                </td>
-                                                <td className="px-5 py-4 border-r border-gray-100">
-                                                    <span className="inline-flex max-w-full px-2.5 py-1 rounded-lg bg-green-50 text-[#1D6F42] text-xs font-medium border border-green-100">
-                                                        <span className="truncate">{carlineLabel}</span>
-                                                    </span>
-                                                </td>
-                                                <td className="px-5 py-4 text-sm text-gray-600 border-r border-gray-100">
-                                                    <span className="block truncate">
+                                                <td className="px-3 py-3 text-xs text-gray-600 border-r border-gray-100 overflow-hidden">
+                                                    <span className="block truncate" title={assyItem.type || "-"}>
                                                         {assyItem.type || "-"}
                                                     </span>
                                                 </td>
-                                                <td className="px-5 py-4 text-right font-mono text-sm text-gray-700 border-r border-gray-100">
-                                                    {formatDecimal(assyItem.umh)}
+                                                <td className="px-3 py-3 text-xs text-gray-600 border-r border-gray-100 overflow-hidden">
+                                                    <span className="inline-flex max-w-full justify-center rounded-lg bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700">
+                                                        <span className="truncate">
+                                                        {assyItem.level || "-"}
+                                                        </span>
+                                                    </span>
                                                 </td>
-                                                <td className="px-5 py-4 text-right font-mono text-sm text-gray-700 border-r border-gray-100">
+                                                <td className="px-3 py-3 text-xs text-gray-700 border-r border-gray-100 overflow-hidden">
+                                                    <span className="block truncate font-medium" title={assyItem.assy_code || "-"}>
+                                                        {assyItem.assy_code || "-"}
+                                                    </span>
+                                                </td>
+                                                <td className="px-3 py-3 text-right font-mono text-xs text-gray-700 border-r border-gray-100 truncate">
                                                     {formatInteger(assyItem.std_pack)}
                                                 </td>
-                                                <td className="px-5 py-4 text-center border-r border-gray-100">
+                                                <td className="px-3 py-3 text-right font-mono text-xs text-gray-700 border-r border-gray-100 truncate">
+                                                    {formatDecimal(assyItem.umh)}
+                                                </td>
+                                                <td className="px-3 py-3 text-center border-r border-gray-100">
                                                     <button
                                                         type="button"
                                                         onClick={() => handleToggleStatus(assyItem)}
                                                         disabled={isProcessing}
-                                                        className={`inline-flex min-w-[88px] items-center justify-center rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                                                        className={`inline-flex w-full max-w-[82px] items-center justify-center rounded-full px-2 py-1 text-[11px] font-semibold transition-colors ${
                                                             isActiveRow
                                                                 ? "bg-green-50 text-[#1D6F42] hover:bg-green-100"
                                                                 : "bg-gray-100 text-gray-500 hover:bg-gray-200"
@@ -530,30 +532,25 @@ export default function Index({ assy, carlines = [], filters = {}, flash: propFl
                                                         {isActiveRow ? "Active" : "Inactive"}
                                                     </button>
                                                 </td>
-                                                <td className="px-5 py-4">
-                                                    <div className="flex items-center gap-2">
-                                                        <Link
-                                                            href={window.route("assy.show", assyItem.id)}
-                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 hover:text-[#1D6F42] hover:border-[#1D6F42]/30 transition-colors"
-                                                        >
-                                                            <EyeIcon className="w-4 h-4" />
-                                                            Detail
-                                                        </Link>
+                                                <td className="px-3 py-3">
+                                                    <div className="flex items-center justify-center gap-1.5">
                                                         <Link
                                                             href={window.route("assy.edit", assyItem.id)}
-                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 hover:text-[#1D6F42] hover:border-[#1D6F42]/30 transition-colors"
+                                                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 hover:text-[#1D6F42] hover:border-[#1D6F42]/30 transition-colors"
+                                                            title="Edit"
+                                                            aria-label={`Edit ${assyItem.assy_number || "assy"}`}
                                                         >
                                                             <PencilIcon className="w-4 h-4" />
-                                                            Edit
                                                         </Link>
                                                         <button
                                                             type="button"
                                                             onClick={() => setDeleteTarget(assyItem)}
                                                             disabled={isProcessing}
-                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-red-600 bg-white border border-red-200 hover:bg-red-50 hover:border-red-300 transition-colors disabled:opacity-60"
+                                                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-600 bg-white border border-red-200 hover:bg-red-50 hover:border-red-300 transition-colors disabled:opacity-60"
+                                                            title="Delete"
+                                                            aria-label={`Delete ${assyItem.assy_number || "assy"}`}
                                                         >
                                                             <TrashIcon className="w-4 h-4" />
-                                                            Delete
                                                         </button>
                                                     </div>
                                                 </td>
@@ -674,7 +671,7 @@ export default function Index({ assy, carlines = [], filters = {}, flash: propFl
                                 <p className="text-sm text-gray-600">
                                     Yakin ingin menghapus assy{" "}
                                     <span className="font-semibold text-gray-900">
-                                        {deleteTarget.part_number}
+                                        {deleteTarget.assy_number}
                                     </span>
                                     ?
                                 </p>

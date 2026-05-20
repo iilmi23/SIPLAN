@@ -6,18 +6,13 @@ use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 /**
- * TYCMapper — mapper untuk sheet JAI (加新件號)
+ * Mapper TYC/JAI horizontal.
  *
- * LOGIKA FILTER WINDOW:
- *   FIRM     → sebulan sebelumnya + bulan berjalan
- *   FORECAST → bulan berjalan + 4 bulan ke depan
- *
- * CARA BACA TANGGAL:
- *   - Kolom start ditentukan dari anchor tahun eksplisit di row 14 (format '2024/1')
- *     → kolom sebelum anchor = data historis lama, di-skip
- *   - Tahun direkonstruksi dari urutan increment bulan (jika bulan mundur → tahun +1)
- *   - Kolom 2W/3W/4W/5W mewarisi bulan+type dari anchor 1W di sebelah kirinya
- *   - Tanggal ETA aktual diambil dari row 18 (ETA PORT KAO) dan ETD aktual diambil dari row ETD PORT SUR
+ * Ringkas:
+ * - Mendeteksi baris FIRM/FORECAST, time chart, ETA, ETD, dan header.
+ * - Memfilter kolom aktif dengan window FIRM dan FORECAST.
+ * - Kolom 2W/3W/4W/5W mewarisi bulan dan type dari anchor 1W.
+ * - Mengambil ETD/ETA dari baris tanggal, lalu qty dari baris assy.
  */
 class TYCMapper implements SRMapperInterface
 {
@@ -69,14 +64,14 @@ class TYCMapper implements SRMapperInterface
 
         $headerColumns = $this->detectHeaderColumns($headerRow);
 
-        $partCol = $headerColumns['part_number'] ?? null;
+        $assyCol = $headerColumns['assy_number'] ?? null;
         $modelCol = $headerColumns['model'] ?? 0;
         $familyCol = $headerColumns['family'] ?? 1;
         $noCol = $headerColumns['no'] ?? 2;
         $sfxCol = $headerColumns['sfx'] ?? 5;
         $qtyLabelCol = $headerColumns['qty_label'] ?? 6;
 
-        if ($partCol === null) {
+        if ($assyCol === null) {
             throw new \Exception("Kolom 'PRODUCT NO' tidak ditemukan");
         }
 
@@ -116,7 +111,7 @@ class TYCMapper implements SRMapperInterface
             " (FIRM=" . count($firmCols) . ", FORECAST=" . count($forecastCols) . ")");
 
         // Cari baris data pertama
-        $dataStartRow = $this->findDataStartRow($sheet, $headerRowIndex, $partCol, $qtyLabelCol, $dateColumns, $hiddenRows);
+        $dataStartRow = $this->findDataStartRow($sheet, $headerRowIndex, $assyCol, $qtyLabelCol, $dateColumns, $hiddenRows);
         if ($dataStartRow === null) {
             throw new \Exception("Baris data tidak ditemukan setelah header");
         }
@@ -135,9 +130,9 @@ class TYCMapper implements SRMapperInterface
             $row = $sheet[$i];
             if (!is_array($row)) continue;
 
-            $partNumber = trim((string)($row[$partCol] ?? ''));
-            if (empty($partNumber)) continue;
-            if (in_array(strtolower($partNumber), $skipWords)) continue;
+            $assyNumber = trim((string)($row[$assyCol] ?? ''));
+            if (empty($assyNumber)) continue;
+            if (in_array(strtolower($assyNumber), $skipWords)) continue;
 
             $processedRows++;
 
@@ -175,7 +170,7 @@ class TYCMapper implements SRMapperInterface
                 $result[] = [
                     'customer'      => 'TYC',
                     'source_file'   => null,
-                    'part_number'   => $partNumber,
+                    'assy_number'   => $assyNumber,
                     'qty'           => $qty,
                     'delivery_date' => $info['eta']->toDateString(),
                     'eta'           => $info['eta']->toDateString(),
@@ -212,10 +207,7 @@ class TYCMapper implements SRMapperInterface
 
         return $result;
     }
-
-    // ─────────────────────────────────────────────────────────────────────
-    // PRIVATE
-    // ─────────────────────────────────────────────────────────────────────
+    // Helpers
 
     /**
      * Cari kolom start: kolom pertama di TIME CHART row dengan format 'YYYY/M'.
@@ -248,7 +240,7 @@ class TYCMapper implements SRMapperInterface
         return 7;
     }
 
-    private function findDataStartRow(array $sheet, int $headerRowIndex, int $partCol, int $qtyLabelCol, array $dateColumns, array $hiddenRows = []): ?int
+    private function findDataStartRow(array $sheet, int $headerRowIndex, int $assyCol, int $qtyLabelCol, array $dateColumns, array $hiddenRows = []): ?int
     {
         for ($i = $headerRowIndex + 1; $i < count($sheet); $i++) {
             if (isset($hiddenRows[$i])) {
@@ -260,8 +252,8 @@ class TYCMapper implements SRMapperInterface
                 continue;
             }
 
-            $partNo = trim((string)($row[$partCol] ?? ''));
-            if ($partNo === '') {
+            $assyNumber = trim((string)($row[$assyCol] ?? ''));
+            if ($assyNumber === '') {
                 continue;
             }
 
@@ -575,7 +567,7 @@ class TYCMapper implements SRMapperInterface
     private function detectHeaderColumns(array $headerRow): array
     {
         $columns = [
-            'part_number' => null,
+            'assy_number' => null,
             'model' => null,
             'family' => null,
             'no' => null,
@@ -590,7 +582,7 @@ class TYCMapper implements SRMapperInterface
             }
 
             if (str_contains($text, 'PRODUCT')) {
-                $columns['part_number'] = $idx;
+                $columns['assy_number'] = $idx;
             }
             if ($text === 'MODEL') {
                 $columns['model'] = $idx;

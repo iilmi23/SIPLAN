@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Assy;
 use App\Models\CarLine;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 use Throwable;
 
 class SirepMasterSyncService
@@ -55,18 +56,10 @@ class SirepMasterSyncService
             $assyStats['total']++;
 
             try {
-                $partNumber = $this->readField($row, [
-                    'part_number',
-                    'partNumber',
-                    'assy_number',
-                    'assyNumber',
-                    'assy_no',
-                    'assyNo',
-                    'part_no',
-                    'product_no',
-                ]);
+                $assyNumber = $this->readField($row, ['assy_number']);
 
-                if (!$partNumber) {
+                if (!$assyNumber) {
+                    $assyStats['errors'][] = "Row " . ($index + 1) . ": field assy_number wajib ada dari API SIREP.";
                     $assyStats['skipped']++;
                     continue;
                 }
@@ -87,7 +80,7 @@ class SirepMasterSyncService
                 }
 
                 $assy = Assy::firstOrNew([
-                    'part_number' => $this->limit($partNumber, 50),
+                    'assy_number' => $this->limit($assyNumber, 50),
                 ]);
 
                 $assy->fill([
@@ -137,6 +130,12 @@ class SirepMasterSyncService
         }
 
         $response = Http::timeout((int) config('services.sirep.timeout', 30))
+            ->withOptions([
+                'proxy' => '',
+                'curl' => [
+                    CURLOPT_NOPROXY => '*',
+                ],
+            ])
             ->acceptJson()
             ->get($url);
 
@@ -162,7 +161,7 @@ class SirepMasterSyncService
 
         $carline = CarLine::firstOrNew(['code' => $code]);
 
-        if ($description || !$carline->exists) {
+        if (Schema::hasColumn($carline->getTable(), 'description') && ($description || !$carline->exists)) {
             $carline->description = $description ? $this->limit($description, 255) : $carline->description;
         }
 

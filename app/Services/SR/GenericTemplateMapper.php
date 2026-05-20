@@ -27,12 +27,12 @@ class GenericTemplateMapper implements SRMapperInterface
     {
         $qtyCol = $this->requiredColumn('qty_column');
         $etdCol = $this->requiredColumn('etd_column');
-        $partCol = $this->requiredColumn('part_number_column');
+        $assyCol = $this->requiredColumn('assy_number_column');
         $records = [];
 
         foreach ($this->dataRows($sheet) as $rowIndex => $row) {
-            $partNumber = $this->stringAt($row, $partCol);
-            if ($this->shouldSkipPart($partNumber)) {
+            $assyNumber = $this->stringAt($row, $assyCol);
+            if ($this->shouldSkipAssyNumber($assyNumber)) {
                 continue;
             }
 
@@ -47,7 +47,7 @@ class GenericTemplateMapper implements SRMapperInterface
             }
 
             $eta = $this->optionalColumnValue($row, 'eta_column', 'date') ?? $etd;
-            $records[] = $this->record($row, $rowIndex, $partNumber, $qty, $etd, $eta);
+            $records[] = $this->record($row, $rowIndex, $assyNumber, $qty, $etd, $eta);
         }
 
         return $this->ensureRecords($records);
@@ -55,7 +55,7 @@ class GenericTemplateMapper implements SRMapperInterface
 
     private function mapHorizontal(array $sheet): array
     {
-        $partCol = $this->requiredColumn('part_number_column');
+        $assyCol = $this->requiredColumn('assy_number_column');
         $qtyStartCol = $this->requiredColumn('qty_start_column');
         $qtyEndCol = $this->requiredColumn('qty_end_column');
         $dateHeaderIndex = max(0, (int) ($this->template->date_header_row ?? $this->template->header_row ?? 1) - 1);
@@ -63,8 +63,8 @@ class GenericTemplateMapper implements SRMapperInterface
         $records = [];
 
         foreach ($this->dataRows($sheet) as $rowIndex => $row) {
-            $partNumber = $this->stringAt($row, $partCol);
-            if ($this->shouldSkipPart($partNumber)) {
+            $assyNumber = $this->stringAt($row, $assyCol);
+            if ($this->shouldSkipAssyNumber($assyNumber)) {
                 continue;
             }
 
@@ -79,7 +79,7 @@ class GenericTemplateMapper implements SRMapperInterface
                     continue;
                 }
 
-                $records[] = $this->record($row, $rowIndex, $partNumber, $qty, $etd, $etd, [
+                $records[] = $this->record($row, $rowIndex, $assyNumber, $qty, $etd, $etd, [
                     'qty_column' => Coordinate::stringFromColumnIndex($col + 1),
                     'date_header_row' => $dateHeaderIndex + 1,
                 ]);
@@ -89,7 +89,7 @@ class GenericTemplateMapper implements SRMapperInterface
         return $this->ensureRecords($records);
     }
 
-    private function record(array $row, int $rowIndex, string $partNumber, int $qty, Carbon $etd, Carbon $eta, array $extra = []): array
+    private function record(array $row, int $rowIndex, string $assyNumber, int $qty, Carbon $etd, Carbon $eta, array $extra = []): array
     {
         $orderType = $this->optionalColumnValue($row, 'order_type_column')
             ?? $this->template->default_order_type
@@ -101,7 +101,7 @@ class GenericTemplateMapper implements SRMapperInterface
         return [
             'customer'      => $this->customer->code,
             'source_file'   => null,
-            'part_number'   => $partNumber,
+            'assy_number'   => $assyNumber,
             'qty'           => $qty,
             'total'         => $qty,
             'delivery_date' => $eta->toDateString(),
@@ -131,7 +131,7 @@ class GenericTemplateMapper implements SRMapperInterface
     private function ensureRecords(array $records): array
     {
         if (empty($records)) {
-            throw new \Exception('Template SR tidak menghasilkan data. Cek baris awal, kolom part number, qty, dan tanggal.');
+            throw new \Exception('Template SR tidak menghasilkan data. Cek baris awal, kolom assy number, qty, dan tanggal.');
         }
 
         return $records;
@@ -228,13 +228,13 @@ class GenericTemplateMapper implements SRMapperInterface
         }
     }
 
-    private function shouldSkipPart(string $partNumber): bool
+    private function shouldSkipAssyNumber(string $assyNumber): bool
     {
-        if ($partNumber === '') {
+        if ($assyNumber === '') {
             return true;
         }
 
-        $lower = strtolower($partNumber);
+        $lower = strtolower($assyNumber);
         $keywords = $this->template->skip_keywords ?: ['total', 'subtotal', 'grand total'];
 
         foreach ($keywords as $keyword) {

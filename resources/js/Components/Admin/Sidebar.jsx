@@ -1,5 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
+import { useTheme } from '@/contexts/ThemeContext';
 
 // ─────────────────────────────────────────────────────────────
 // SVG Icons
@@ -65,12 +66,6 @@ const Icons = {
                 d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
     ),
-    Variance: () => (
-        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6"
-                d="M7 17l4-4 3 3 5-6M7 7h10M7 12h3m-7 8h18" />
-        </svg>
-    ),
     SPP: () => (
         <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6"
@@ -83,14 +78,14 @@ const Icons = {
                 d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
     ),
-    Settings: () => (
-        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6"
-                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6"
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-    ),
+    // Settings: () => (
+    //     <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    //         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6"
+    //             d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+    //         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6"
+    //             d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    //     </svg>
+    // ),
     Users: () => (
         <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6"
@@ -113,11 +108,13 @@ const MENU_SECTIONS = [
                 name: 'Dashboard',
                 icon: 'Dashboard',
                 route: 'dashboard',
+                permission: 'dashboard.view',
                 roles: ['admin', 'ppc'],
             },
             {
                 name: 'Masters',
                 icon: 'Master',
+                permission: 'masters.view',
                 roles: ['admin', 'ppc'],
                 submenu: [
                     // {
@@ -130,36 +127,42 @@ const MENU_SECTIONS = [
                         name: 'Customers',
                         icon: 'Customers',
                         route: 'customers.index',
+                        permission: 'customers.view',
                         roles: ['admin'],
                     },
                     {
                         name: 'Ports',
                         icon: 'Ports',
                         route: 'ports.index',
+                        permission: 'ports.view',
                         roles: ['admin'],
                     },
                     {
                         name: 'SR Templates',
                         icon: 'Summary',
                         route: 'sr-mapping-templates.index',
+                        permission: 'sr-templates.view',
                         roles: ['admin'],
                     },
                     {
                        name: 'Week',
                         icon: 'ProductionWeek',
                         route: 'production-week.index',
+                        permission: 'production-week.view',
                         roles: ['admin', 'ppc'],
                     },
                     {
                         name: 'Carline',
                         icon: 'Carline',
                         route: 'carline.index',
+                        permission: 'carline.view',
                         roles: ['admin', 'ppc'],
                     },
                     {
                         name: 'Assy',
                         icon: 'Assy',
                         route: 'assy.index',
+                        permission: 'assy.view',
                         roles: ['admin', 'ppc'],
                     },
                 ],
@@ -173,30 +176,28 @@ const MENU_SECTIONS = [
                 name: 'Upload SR',
                 icon: 'UploadSR',
                 route: 'sr.upload.page',
+                permission: 'sr.upload',
                 roles: ['admin', 'ppc'],
             },
             {
                 name: 'Summary',
                 icon: 'Summary',
                 route: 'summary.index',
-                roles: ['admin', 'ppc'],
-            },
-            {
-                name: 'Variance',
-                icon: 'Variance',
-                route: 'variance.index',
+                permission: 'summary.view',
                 roles: ['admin', 'ppc'],
             },
             {
                 name: 'SPP',
                 icon: 'SPP',
                 route: 'spp',
+                permission: 'spp.view',
                 roles: ['admin', 'ppc'],
             },
             {
                 name: 'History',
                 icon: 'History',
                 route: 'history',
+                permission: 'history.view',
                 roles: ['admin', 'ppc'],
             },
         ],
@@ -208,14 +209,15 @@ const MENU_SECTIONS = [
                 name: 'Users',
                 icon: 'Users',
                 route: 'users.index',
+                permission: 'users.view',
                 roles: ['admin'],
             },
-            {
-                name: 'Settings',
-                icon: 'Settings',
-                route: 'settings',
-                roles: ['admin'],
-            },
+            // {
+            //     name: 'Settings',
+            //     icon: 'Settings',
+            //     route: 'settings',
+            //     roles: ['admin'],
+            // },
         ],
     },
 ];
@@ -258,11 +260,12 @@ function Tooltip({ label }) {
 // Main Sidebar
 // ─────────────────────────────────────────────────────────────
 export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
-    const { url } = usePage();
+    const { url, props } = usePage();
+    const { isDark } = useTheme();
     const [activeMenu, setActiveMenu] = useState('Dashboard');
     const [openSubmenu, setOpenSubmenu] = useState(null);
     const [hovered, setHovered] = useState(null);
-    const user = usePage().props.auth?.user;
+    const user = props.auth?.user;
 
     // Guard: Jika user undefined (belum login atau auth tidak ter-share), jangan render sidebar
     if (!user) {
@@ -270,13 +273,21 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
     }
 
     const role = user.role ?? 'ppc';
+    const permissions = Array.isArray(user.permissions) ? user.permissions : [];
 
-    const filterItemsByRole = (items, currentRole) => {
+    const canAccess = (item, currentRole) => {
+        const roleAllowed = !item.roles || item.roles.includes(currentRole);
+        const permissionAllowed = !item.permission || permissions.length === 0 || permissions.includes(item.permission);
+
+        return roleAllowed && permissionAllowed;
+    };
+
+    const filterItemsByPermission = (items, currentRole) => {
         return items
             .map((item) => {
-                const visible = !item.roles || item.roles.includes(currentRole);
+                const visible = canAccess(item, currentRole);
                 const submenu = item.submenu
-                    ? filterItemsByRole(item.submenu, currentRole)
+                    ? filterItemsByPermission(item.submenu, currentRole)
                     : undefined;
 
                 if (!visible && (!submenu || submenu.length === 0)) {
@@ -294,7 +305,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
     const menuSections = MENU_SECTIONS
         .map((section) => ({
             ...section,
-            items: filterItemsByRole(section.items, role),
+            items: filterItemsByPermission(section.items, role),
         }))
         .filter((section) => section.items.length > 0);
 
@@ -374,7 +385,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
         // Reset active menu based on current URL
         let found = false;
 
-        for (const sec of MENU_SECTIONS) {
+        for (const sec of menuSections) {
             for (const item of sec.items) {
                 if (item.route && !item.submenu && isActive(item.route)) {
                     setActiveMenu(item.name);
@@ -401,6 +412,20 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
 
     const toggleSub = (name) => setOpenSubmenu(prev => prev === name ? null : name);
     const sidebarW = sidebarOpen ? SIDEBAR_EXPANDED_W : SIDEBAR_COLLAPSED_W;
+    const theme = {
+        sidebarBg: isDark ? '#111827' : '#ffffff',
+        border: isDark ? 'rgba(148, 163, 184, 0.26)' : '#e8eeea',
+        softBorder: isDark ? 'rgba(148, 163, 184, 0.16)' : '#f0f4f2',
+        text: isDark ? '#f8fafc' : '#1a1a1a',
+        mutedText: isDark ? '#94a3b8' : '#444444',
+        subtleText: isDark ? '#64748b' : '#b0b8b4',
+        submenuText: isDark ? '#cbd5e1' : '#333333',
+        submenuActiveBg: isDark ? 'rgba(52, 211, 153, 0.14)' : '#e8f5ed',
+        divider: isDark ? 'linear-gradient(to right, transparent, rgba(148, 163, 184, 0.25), transparent)' : 'linear-gradient(to right, transparent, #dde8e2, transparent)',
+        toggleBg: isDark ? '#172033' : '#f7fbf8',
+        toggleColor: isDark ? '#34d399' : '#7aaa8a',
+        shadow: isDark ? '1px 0 0 rgba(148, 163, 184, 0.16), 8px 0 28px rgba(0,0,0,0.18)' : '1px 0 0 #e8eeea, 4px 0 20px rgba(0,0,0,0.04)',
+    };
 
     // Style helpers
     const itemStyle = (name, extra = {}) => {
@@ -421,10 +446,10 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
             letterSpacing: '0.01em',
             transition: 'background 0.18s, color 0.18s',
             background: act
-                ? 'linear-gradient(135deg, #1a6338 0%, #22854e 100%)'
+                ? (isDark ? 'linear-gradient(135deg, #047857 0%, #059669 100%)' : 'linear-gradient(135deg, #1a6338 0%, #22854e 100%)')
                 : 'transparent',
-            color: act ? '#ffffff' : '#1a1a1a',
-            boxShadow: act ? '0 3px 12px rgba(26,99,56,0.25)' : 'none',
+            color: act ? '#ffffff' : theme.text,
+            boxShadow: act ? (isDark ? '0 8px 22px rgba(5,150,105,0.24)' : '0 3px 12px rgba(26,99,56,0.25)') : 'none',
             ...extra,
         };
     };
@@ -439,8 +464,8 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
             borderRadius: 8,
             fontSize: '0.8rem',
             fontWeight: act ? 600 : 400,
-            color: act ? '#1a6338' : '#333333',
-            background: act ? '#e8f5ed' : 'transparent',
+            color: act ? (isDark ? '#34d399' : '#1a6338') : theme.submenuText,
+            background: act ? theme.submenuActiveBg : 'transparent',
             textDecoration: 'none',
             transition: 'background 0.15s, color 0.15s',
             cursor: 'pointer',
@@ -451,7 +476,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
         display: 'block',
         fontSize: '0.6rem',
         fontWeight: 700,
-        color: '#b0b8b4',
+        color: theme.subtleText,
         letterSpacing: '0.13em',
         textTransform: 'uppercase',
         padding: '0 14px',
@@ -474,17 +499,17 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
                 />
             )}
 
-            <aside style={{
+            <aside className="siplan-sidebar" style={{
                 position: 'fixed',
                 top: 0, left: 0, bottom: 0,
                 width: sidebarW,
                 minWidth: sidebarW,
-                background: '#ffffff',
+                background: theme.sidebarBg,
                 display: 'flex',
                 flexDirection: 'column',
                 zIndex: 30,
                 transition: 'width 0.28s cubic-bezier(0.4,0,0.2,1)',
-                boxShadow: '1px 0 0 #e8eeea, 4px 0 20px rgba(0,0,0,0.04)',
+                boxShadow: theme.shadow,
                 fontFamily: "'DM Sans','Segoe UI',sans-serif",
                 overflowX: 'hidden',
                 overflowY: 'auto',
@@ -497,7 +522,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
                     alignItems: 'center',
                     justifyContent: sidebarOpen ? 'flex-start' : 'center',
                     padding: sidebarOpen ? '0 18px' : '0',
-                    borderBottom: '1px solid #f0f4f2',
+                    borderBottom: `1px solid ${theme.softBorder}`,
                     flexShrink: 0,
                 }}>
                     <Link href={getRouteUrl('dashboard')} style={{ display: 'flex', alignItems: 'center' }}>
@@ -519,7 +544,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
                                 : <div style={{
                                     height: 1,
                                     margin: '0 8px 8px',
-                                    background: 'linear-gradient(to right, transparent, #dde8e2, transparent)',
+                                    background: theme.divider,
                                 }} />
                             }
 
@@ -545,7 +570,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
                                                     }}
                                                 >
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: sidebarOpen ? 10 : 0 }}>
-                                                        <span style={{ color: act ? '#fff' : '#444', display: 'flex' }}>
+                                                        <span style={{ color: act ? '#fff' : theme.mutedText, display: 'flex' }}>
                                                             {Icons[item.icon]?.()}
                                                         </span>
                                                         {sidebarOpen && <span>{item.name}</span>}
@@ -556,7 +581,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
                                                                 width: 13, height: 13,
                                                                 transform: subOpen ? 'rotate(180deg)' : 'none',
                                                                 transition: 'transform 0.2s',
-                                                                color: act ? '#fff' : '#999',
+                                                                color: act ? '#fff' : theme.subtleText,
                                                                 flexShrink: 0,
                                                             }}
                                                             fill="none" stroke="currentColor" viewBox="0 0 24 24"
@@ -572,7 +597,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
                                                     onMouseLeave={() => { if (!sidebarOpen) setHovered(null); }}
                                                     style={itemStyle(item.name)}
                                                 >
-                                                    <span style={{ color: act ? '#fff' : '#444', display: 'flex', flexShrink: 0 }}>
+                                                    <span style={{ color: act ? '#fff' : theme.mutedText, display: 'flex', flexShrink: 0 }}>
                                                         {Icons[item.icon]?.()}
                                                     </span>
                                                     {sidebarOpen && <span style={{ marginLeft: 10 }}>{item.name}</span>}
@@ -590,7 +615,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
                                                     listStyle: 'none',
                                                     margin: '3px 0 3px 0',
                                                     padding: '4px 0 4px 12px',
-                                                    borderLeft: '2px solid #d4eadc',
+                                                    borderLeft: `2px solid ${isDark ? 'rgba(52, 211, 153, 0.28)' : '#d4eadc'}`,
                                                     marginLeft: 20,
                                                     display: 'flex',
                                                     flexDirection: 'column',
@@ -606,7 +631,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
                                                                     href={subRoute}
                                                                     style={subItemStyle(sub.route)}
                                                                 >
-                                                                    <span style={{ color: subAct ? '#1a6338' : '#666', display: 'flex', flexShrink: 0 }}>
+                                                                    <span style={{ color: subAct ? (isDark ? '#34d399' : '#1a6338') : theme.subtleText, display: 'flex', flexShrink: 0 }}>
                                                                         {Icons[sub.icon]?.()}
                                                                     </span>
                                                                     {sub.name}
@@ -615,7 +640,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
                                                                             marginLeft: 'auto',
                                                                             width: 5, height: 5,
                                                                             borderRadius: '50%',
-                                                                            background: '#1a6338',
+                                                                            background: isDark ? '#34d399' : '#1a6338',
                                                                             flexShrink: 0,
                                                                         }} />
                                                                     )}
@@ -636,7 +661,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
                 {/* Collapse toggle */}
                 <div style={{
                     padding: '12px 8px',
-                    borderTop: '1px solid #f0f4f2',
+                    borderTop: `1px solid ${theme.softBorder}`,
                     display: 'flex',
                     justifyContent: sidebarOpen ? 'flex-end' : 'center',
                     flexShrink: 0,
@@ -647,9 +672,9 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
                         style={{
                             width: 30, height: 30,
                             borderRadius: 8,
-                            border: '1.5px solid #dde8e2',
-                            background: '#f7fbf8',
-                            color: '#7aaa8a',
+                            border: `1.5px solid ${theme.border}`,
+                            background: theme.toggleBg,
+                            color: theme.toggleColor,
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             cursor: 'pointer',
                             transition: 'all 0.18s',

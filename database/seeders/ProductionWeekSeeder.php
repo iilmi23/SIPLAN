@@ -31,9 +31,14 @@ class ProductionWeekSeeder extends Seeder
         foreach ($monthData as $data) {
             $monthNumber = $this->getMonthNumber($data['month']);
             $monthStart = Carbon::parse($data['start']);
+            $monthEnd = Carbon::parse($data['end']);
 
             for ($weekNo = 1; $weekNo <= $data['weeks']; $weekNo++) {
                 $weekStart = $monthStart->copy()->addWeeks($weekNo - 1);
+                $weekEnd = $weekNo === $data['weeks']
+                    ? $monthEnd->copy()
+                    : $weekStart->copy()->addDays(6);
+                $workingDays = $this->workingDaysBetween($weekStart, $weekEnd);
 
                 ProductionWeek::updateOrCreate(
                     [
@@ -45,7 +50,9 @@ class ProductionWeekSeeder extends Seeder
                     [
                         'month_name' => $data['month'],
                         'week_start' => $weekStart->toDateString(),
-                        'end_date' => $weekStart->copy()->addDays(6)->toDateString(),
+                        'end_date' => $weekEnd->toDateString(),
+                        'working_days' => $workingDays,
+                        'total_working_days' => count($workingDays),
                         'num_weeks' => $data['weeks'],
                     ]
                 );
@@ -64,5 +71,22 @@ class ProductionWeekSeeder extends Seeder
             'SEP' => 9, 'OCT' => 10, 'NOV' => 11, 'DEC' => 12
         ];
         return $months[$month] ?? 1;
+    }
+
+    private function workingDaysBetween(Carbon $start, Carbon $end): array
+    {
+        $workingDays = [];
+        $date = $start->copy()->startOfDay();
+        $endDate = $end->copy()->startOfDay();
+
+        while ($date->lte($endDate)) {
+            if ($date->isWeekday()) {
+                $workingDays[] = $date->toDateString();
+            }
+
+            $date->addDay();
+        }
+
+        return $workingDays;
     }
 }

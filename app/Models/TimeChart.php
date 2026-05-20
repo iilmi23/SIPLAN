@@ -16,6 +16,8 @@ class TimeChart extends Model
         'working_days',
         'total_working_days',
         'source_file',
+        'file_hash',
+        'last_upload_at',
         'upload_batch',
     ];
 

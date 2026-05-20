@@ -100,12 +100,12 @@ class SummaryExport implements FromArray, WithStyles, WithColumnWidths, WithCust
         $rows[] = $row4;
 
         // ── Data Rows
-        $grouped = $this->data->groupBy('part_number');
+        $grouped = $this->data->groupBy('assy_number');
         $index   = 0;
 
-        foreach ($grouped as $partNumber => $items) {
+        foreach ($grouped as $assyNumber => $items) {
             $index++;
-            $dataRow = [$index, $partNumber, 'QTY'];
+            $dataRow = [$index, $assyNumber, 'QTY'];
 
             foreach ($periods as $period) {
                 if ($period['week'] === 'TOT') {
@@ -303,7 +303,7 @@ class SummaryExport implements FromArray, WithStyles, WithColumnWidths, WithCust
                 'borders'   => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['argb' => 'FF334155']]],
             ]);
 
-            // Part number: left-aligned with indent
+            // Assy number: left-aligned with indent
             $sheet->getStyle("B{$r}")->getAlignment()
                   ->setHorizontal(Alignment::HORIZONTAL_LEFT)
                   ->setIndent(1);
@@ -436,15 +436,14 @@ class SummaryExport implements FromArray, WithStyles, WithColumnWidths, WithCust
                 // Sort weeks inside month by ETD date
                 usort($periods, fn($a, $b) => strcmp($a['etd_raw'], $b['etd_raw']));
 
-                // Take up to 5 weeks, but always keep exactly 5 week slots.
-                // If there are fewer than 5 week periods, fill later slots with week numbers.
+                // Keep every actual ETD/ETA period. Fill later slots so the sheet
+                // still has the customer-specific monthly shape.
                 $weekCount = 0;
                 foreach ($periods as $period) {
-                    if ($weekCount >= 5) break;
                     $result[]  = $period;
                     $weekCount++;
                 }
-                while ($weekCount < 5) {
+                while ($weekCount < $this->periodsPerMonth()) {
                     $weekNum = $weekCount + 1;
                     $result[] = [
                         'week'    => $weekNum,
@@ -499,6 +498,11 @@ class SummaryExport implements FromArray, WithStyles, WithColumnWidths, WithCust
         }
 
         return $week;
+    }
+
+    protected function periodsPerMonth(): int
+    {
+        return 5;
     }
 
     protected function buildMonthGroups(array $periods): array

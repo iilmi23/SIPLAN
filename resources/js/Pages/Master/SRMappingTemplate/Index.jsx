@@ -99,7 +99,7 @@ export default function Index({ templates = [], flash }) {
                                             Header {template.header_row || "-"}, Data {template.data_start_row}
                                         </td>
                                         <td className="px-6 py-4 text-sm text-gray-600">
-                                            Part {template.part_number_column}, Qty {template.qty_column || `${template.qty_start_column}-${template.qty_end_column}`}
+                                            Assy {template.assy_number_column}, Qty {template.qty_column || `${template.qty_start_column}-${template.qty_end_column}`}
                                         </td>
                                         <td className="px-6 py-4">
                                             <span className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${template.is_active ? "bg-green-50 text-[#1D6F42]" : "bg-gray-100 text-gray-500"}`}>

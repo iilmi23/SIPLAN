@@ -53,6 +53,9 @@ class WeekGenerator
                 $numWeeks++;
                 $temp->addWeek();
             }
+
+            $weekEnd = $current->copy()->addDays(6);
+            $workingDays = self::defaultWorkingDays($current, $weekEnd);
             
             // Simpan atau update week
             $week = ProductionWeek::updateOrCreate(
@@ -65,7 +68,9 @@ class WeekGenerator
                 [
                     'month_name' => $monthName,
                     'week_start' => $current->toDateString(),
-                    'end_date' => $current->copy()->addDays(6)->toDateString(), // Sunday
+                    'end_date' => $weekEnd->toDateString(), // Sunday
+                    'working_days' => $workingDays,
+                    'total_working_days' => count($workingDays),
                     'num_weeks' => $numWeeks,
                 ]
             );
@@ -140,7 +145,7 @@ class WeekGenerator
         
         // Cek mapping yang sudah ada
         $existingMapping = EtdMapping::where('customer_id', $customerId)
-            ->where('etd_date', $etdDate)
+            ->whereDate('etd_date', $etdDate)
             ->first();
         
         if ($existingMapping) {
@@ -185,5 +190,22 @@ class WeekGenerator
             'max' => max($dates),
             'all' => array_unique($dates),
         ];
+    }
+
+    private static function defaultWorkingDays(Carbon $weekStart, Carbon $weekEnd): array
+    {
+        $workingDays = [];
+        $date = $weekStart->copy()->startOfDay();
+        $end = $weekEnd->copy()->startOfDay();
+
+        while ($date->lte($end)) {
+            if ($date->isWeekday()) {
+                $workingDays[] = $date->toDateString();
+            }
+
+            $date->addDay();
+        }
+
+        return $workingDays;
     }
 }

@@ -73,8 +73,8 @@ class SRController extends Controller
     {
         $query = SR::query();
 
-        if ($request->filled('part_number')) {
-            $query->where('part_number', 'like', '%' . $request->part_number . '%');
+        if ($request->filled('assy_number')) {
+            $query->where('assy_number', 'like', '%' . $request->assy_number . '%');
         }
         if ($request->filled('order_type')) {
             $query->where('order_type', $request->order_type);
@@ -93,7 +93,7 @@ class SRController extends Controller
             'total_firm'     => SR::where('order_type', 'FIRM')->count(),
             'total_forecast' => SR::where('order_type', 'FORECAST')->count(),
             'total_qty'      => SR::sum('qty'),
-            'unique_parts'   => SR::distinct('part_number')->count('part_number'),
+            'unique_assy_numbers' => SR::distinct('assy_number')->count('assy_number'),
             'mapped_count'   => SR::where('is_mapped', true)->count(),
             'unmapped_count' => SR::where('is_mapped', false)->count(),
         ];
@@ -139,13 +139,13 @@ class SRController extends Controller
     }
 
     /**
-     * Remap part yang tidak dikenal
+     * Remap assy number yang tidak dikenal
      */
     public function remap($id)
     {
         try {
             $sr = SR::findOrFail($id);
-            $assy = assy::where('part_number', $sr->part_number)->first();
+            $assy = assy::where('assy_number', $sr->assy_number)->first();
             
             if ($assy) {
                 $sr->update([
@@ -153,10 +153,10 @@ class SRController extends Controller
                     'is_mapped' => true,
                     'mapping_error' => null,
                 ]);
-                return response()->json(['success' => true, 'message' => 'Part berhasil di-remap']);
+                return response()->json(['success' => true, 'message' => 'Assy number berhasil di-remap']);
             }
             
-            return response()->json(['success' => false, 'message' => 'Part tidak ditemukan di master assy'], 404);
+            return response()->json(['success' => false, 'message' => 'Assy number tidak ditemukan di master assy'], 404);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }

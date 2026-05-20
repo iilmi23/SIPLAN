@@ -38,13 +38,11 @@ class PortController extends Controller
     public function store(Request $request, Customer $customer)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string'
+            'name' => 'required|string|max:255'
         ]);
 
         $customer->ports()->create([
-            'name' => $validated['name'],
-            'description' => $validated['description'] ?? null,
+            'name' => $validated['name']
         ]);
 
         return redirect()
@@ -63,13 +61,11 @@ class PortController extends Controller
     public function update(Request $request, Customer $customer, Port $port)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string'
+            'name' => 'required|string|max:255'
         ]);
 
         $port->update([
-            'name' => $validated['name'],
-            'description' => $validated['description'] ?? null,
+            'name' => $validated['name']
         ]);
 
         return redirect()

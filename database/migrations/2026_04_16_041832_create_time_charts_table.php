@@ -25,12 +25,14 @@ return new class extends Migration
             $table->integer('total_working_days')->default(0);
             
             $table->string('source_file')->nullable();
+            $table->string('file_hash')->nullable();
+            $table->timestamp('last_upload_at')->nullable();
             $table->string('upload_batch')->nullable();
             
             $table->timestamps();
             
             // Indexes
-            $table->index(['year', 'month', 'week_number']);
+            $table->unique(['year', 'month', 'week_number'], 'unique_year_month_week');
             $table->index('upload_batch');
         });
     }

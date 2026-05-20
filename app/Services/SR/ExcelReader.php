@@ -147,12 +147,12 @@ class ExcelReader
             $row = $this->data[$i];
             if (!is_array($row)) continue;
             
-            // Ambil part number
-            $partNumber = $row[$columns['part_number']] ?? null;
-            if (empty($partNumber)) continue;
+            // Ambil assy number
+            $assyNumber = $row[$columns['assy_number']] ?? null;
+            if (empty($assyNumber)) continue;
             
-            $partNumber = trim((string)$partNumber);
-            $partLower = strtolower($partNumber);
+            $assyNumber = trim((string)$assyNumber);
+            $partLower = strtolower($assyNumber);
             
             // Skip baris total
             if (in_array($partLower, ['total', 'subtotal', 'cum', 'grand total', ''])) {
@@ -187,7 +187,7 @@ class ExcelReader
                 $result[] = [
                     'customer' => $this->config['customer_code'],
                     'source_file' => null,
-                    'part_number' => $partNumber,
+                    'assy_number' => $assyNumber,
                     'qty' => $qty,
                     'delivery_date' => $eta->format('Y-m-d'),
                     'eta' => $eta->format('Y-m-d'),

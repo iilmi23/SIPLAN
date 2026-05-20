@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Variance\AnalyticsCacheService;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Customer;
 use App\Models\Port;
@@ -36,6 +37,12 @@ class UploadBatch extends Model
         'total_qty' => 'integer',
     ];
 
+    protected static function booted(): void
+    {
+        static::updated(fn () => app(AnalyticsCacheService::class)->invalidate());
+        static::deleted(fn () => app(AnalyticsCacheService::class)->invalidate());
+    }
+
     public function customer()
     {
         return $this->belongsTo(Customer::class);
@@ -59,5 +66,10 @@ class UploadBatch extends Model
     public function orderSummaries()
     {
         return $this->hasMany(Summary::class, 'upload_batch_id');
+    }
+
+    public function sppRecords()
+    {
+        return $this->hasMany(SPP::class, 'upload_batch_id');
     }
 }

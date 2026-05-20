@@ -1,7 +1,7 @@
 import AdminLayout from "@/Layouts/AdminLayout";
 import Breadcrumb from "@/Components/Admin/Breadcrumb";
 import { Link, useForm } from "@inertiajs/react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import {
     ArrowDownTrayIcon,
@@ -13,25 +13,45 @@ import {
     ExclamationTriangleIcon,
     EyeIcon,
     TableCellsIcon,
+    XMarkIcon,
 } from "@heroicons/react/24/outline";
 
 const MONTH_ORDER = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-const PREVIEW_ROW_LIMIT = 12;
 const IMPORT_WEEK_OPTIONS = ["3", "4", "5"];
 
-export default function Import({ customers = [] }) {
+export default function Import({ customers = [], flash = {} }) {
     const fileRef = useRef(null);
     const [preview, setPreview] = useState(null);
     const [previewError, setPreviewError] = useState("");
     const [previewing, setPreviewing] = useState(false);
+    const [showFlash, setShowFlash] = useState(false);
+    const [flashMessage, setFlashMessage] = useState("");
+    const [flashType, setFlashType] = useState("success");
+    const [sheets, setSheets] = useState([]);
+    const [selectedSheet, setSelectedSheet] = useState("");
 
     const { data, setData, post, processing, errors, reset } = useForm({
         customer_id: "",
         file: null,
+        sheet: "",
     });
 
     const isBusy = previewing || processing;
-    const canImport = Boolean(data.file && preview && preview.validRows > 0 && !isBusy);
+    const canImport = Boolean(data.file && selectedSheet && preview && preview.validRows > 0 && !isBusy);
+    const importHelpText = !previewing && data.file && preview && preview.validRows === 0
+        ? "Tidak ada baris valid untuk diupload. Periksa format Excel dan kolom yang wajib."
+        : "Klik Preview Data untuk melihat file dan aktifkan Upload Week jika ada baris valid.";
+    const serverErrorMessages = Object.values(errors || {}).flat();
+
+    useEffect(() => {
+        if (flash?.success || flash?.warning || flash?.error) {
+            setFlashType(flash.success ? "success" : flash.warning ? "warning" : "error");
+            setFlashMessage(flash.success || flash.warning || flash.error);
+            setShowFlash(true);
+            const timer = window.setTimeout(() => setShowFlash(false), 4000);
+            return () => window.clearTimeout(timer);
+        }
+    }, [flash]);
 
     const handleFileChange = async (event) => {
         const file = event.target.files?.[0] ?? null;
@@ -39,6 +59,8 @@ export default function Import({ customers = [] }) {
 
         if (!file) {
             clearPreview();
+            setSheets([]);
+            setSelectedSheet("");
             return;
         }
 
@@ -46,7 +68,10 @@ export default function Import({ customers = [] }) {
 
         if (!["xlsx", "xls"].includes(extension)) {
             setData("file", null);
+            setData("sheet", "");
             setPreview(null);
+            setSheets([]);
+            setSelectedSheet("");
             setPreviewError("Please select a valid Excel file (.xlsx or .xls).");
 
             if (fileRef.current) {
@@ -56,7 +81,7 @@ export default function Import({ customers = [] }) {
             return;
         }
 
-        await buildPreview(file);
+        await loadSheets(file);
     };
 
     const clearPreview = () => {
@@ -65,9 +90,38 @@ export default function Import({ customers = [] }) {
         setPreviewing(false);
     };
 
+    const loadSheets = async (file) => {
+        setPreviewing(true);
+        setSheets([]);
+        setSelectedSheet("");
+        setData("sheet", "");
+        clearPreview();
+
+        try {
+            const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
+            const sheetNames = workbook.SheetNames || [];
+
+            if (sheetNames.length === 0) {
+                throw new Error("No worksheet found");
+            }
+
+            setSheets(sheetNames);
+            setSelectedSheet(sheetNames[0]);
+            setData("sheet", sheetNames[0]);
+            await buildPreview(file, sheetNames[0]);
+        } catch (error) {
+            setPreviewError("Failed to read Excel file. Make sure the file is a valid .xlsx or .xls file.");
+        } finally {
+            setPreviewing(false);
+        }
+    };
+
     const resetForm = () => {
         reset();
         clearPreview();
+        setSheets([]);
+        setSelectedSheet("");
+        setData("sheet", "");
 
         if (fileRef.current) {
             fileRef.current.value = "";
@@ -85,40 +139,57 @@ export default function Import({ customers = [] }) {
         post(route("production-week.import"), {
             forceFormData: true,
             preserveScroll: true,
+            onError: () => {
+                setPreviewError("Upload gagal. Periksa pesan kesalahan di bawah dan perbaiki file/format.");
+            },
         });
     };
 
-    const buildPreview = async (file) => {
+    const buildPreview = async (file, sheetName = selectedSheet) => {
         setPreviewing(true);
         setPreview(null);
         setPreviewError("");
 
         try {
             const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
-            const sheetName = workbook.SheetNames[0];
+            const targetSheet = sheetName || workbook.SheetNames[0];
 
-            if (!sheetName) {
+            if (!targetSheet || !workbook.Sheets[targetSheet]) {
                 throw new Error("No worksheet found");
             }
 
-            const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
+            const rows = XLSX.utils.sheet_to_json(workbook.Sheets[targetSheet], {
                 header: 1,
                 raw: false,
                 defval: "",
             });
+            const headerIndex = findProductionWeekHeaderIndex(rows);
 
             const parsedRows = rows
-                .slice(1)
-                .map((row, index) => parsePreviewRow(row, index + 2))
+                .slice(headerIndex + 1)
+                .map((row, index) => parsePreviewRow(row, headerIndex + index + 2))
                 .filter((row) => row.hasData);
 
+            const validRows = parsedRows.filter((row) => row.errors.length === 0).length;
+            const errorRows = parsedRows.filter((row) => row.errors.length > 0).length;
+            const noDataRows = parsedRows.length === 0;
+            const noValidRows = parsedRows.length > 0 && validRows === 0;
+
             setPreview({
-                sheetName,
+                sheetName: targetSheet,
                 totalRows: parsedRows.length,
-                validRows: parsedRows.filter((row) => row.errors.length === 0).length,
-                errorRows: parsedRows.filter((row) => row.errors.length > 0).length,
-                rows: parsedRows.slice(0, PREVIEW_ROW_LIMIT),
+                validRows,
+                errorRows,
+                rows: parsedRows,
             });
+
+            if (noDataRows) {
+                setPreviewError("Tidak ditemukan data baris setelah header. Pastikan ada data di baris setelah header.");
+            } else if (noValidRows) {
+                setPreviewError("Tidak ada baris valid. Periksa format Month, Range, Year, dan Total Weeks.");
+            } else {
+                setPreviewError("");
+            }
         } catch (error) {
             setPreviewError("Failed to read Excel file. Make sure the file is a valid .xlsx or .xls file.");
         } finally {
@@ -131,11 +202,15 @@ export default function Import({ customers = [] }) {
             <div className="min-h-screen bg-gray-50/40 pt-2 pb-8 px-5 md:px-8 font-sans">
                 <Breadcrumb items={[{ label: "Masters" }, { label: "Production Weeks", href: route("production-week.index") }, { label: "Import" }]} />
 
-                {processing && (
+                {showFlash && flashMessage && (
+                    <Alert type={flashType} message={flashMessage} onClose={() => setShowFlash(false)} />
+                )}
+
+                {isBusy && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20">
                         <div className="flex items-center gap-3 rounded-xl bg-white p-6 shadow-xl">
                             <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#1D6F42] border-t-transparent" />
-                            <span className="text-sm font-medium text-gray-700">Importing production week...</span>
+                            <span className="text-sm font-medium text-gray-700">Processing...</span>
                         </div>
                     </div>
                 )}
@@ -161,17 +236,8 @@ export default function Import({ customers = [] }) {
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-3">
-                                <a
-                                    href={route("production-week.download-template")}
-                                    className="inline-flex h-11 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-[#1D6F42]"
-                                >
-                                    <ArrowDownTrayIcon className="h-5 w-5" />
-                                    Template
-                                </a>
-                                <div className="hidden h-12 w-12 items-center justify-center rounded-xl bg-[#1D6F42]/10 text-[#1D6F42] sm:flex">
-                                    <DocumentArrowUpIcon className="h-6 w-6" />
-                                </div>
+                            <div className="hidden h-12 w-12 items-center justify-center rounded-xl bg-[#1D6F42]/10 text-[#1D6F42] sm:flex">
+                                <DocumentArrowUpIcon className="h-6 w-6" />
                             </div>
                         </div>
                     </div>
@@ -188,13 +254,13 @@ export default function Import({ customers = [] }) {
                                                 <ArrowUpTrayIcon className="h-5 w-5" />
                                             </div>
                                             <div>
-                                                <h2 className="text-sm font-semibold text-gray-900">Upload Excel File</h2>
-                                                <p className="text-xs text-gray-500">Set customer scope and choose your week template.</p>
+                                                <h2 className="text-sm font-semibold text-gray-900">Upload Setup</h2>
+                                                <p className="text-xs text-gray-500">Set customer scope, download template, and choose file.</p>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div className="grid gap-5 p-5 lg:grid-cols-[280px_minmax(0,1fr)]">
+                                    <div className="grid gap-5 p-5 lg:grid-cols-2">
                                         <div>
                                             <label className="mb-1.5 block text-sm font-semibold text-gray-700">
                                                 Customer Scope
@@ -207,16 +273,31 @@ export default function Import({ customers = [] }) {
                                                 <option value="">Global (all customers)</option>
                                                 {customers.map((customer) => (
                                                     <option key={customer.id} value={customer.id}>
-                                                        {customer.name} ({customer.code})
+                                                        {customer.code}
                                                     </option>
                                                 ))}
                                             </select>
                                             {errors.customer_id && <p className="mt-1 text-xs text-red-500">{errors.customer_id}</p>}
+                                            <p className="mt-1 text-xs text-gray-500">Leave global if the week calendar applies to all customers.</p>
                                         </div>
 
                                         <div>
                                             <label className="mb-1.5 block text-sm font-semibold text-gray-700">
-                                                Excel File
+                                                Template
+                                            </label>
+                                            <a
+                                                href={route("production-week.download-template")}
+                                                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#1D6F42]/30 bg-[#1D6F42]/10 px-4 text-sm font-semibold text-[#1D6F42] transition-colors hover:bg-[#1D6F42] hover:text-white"
+                                            >
+                                                <ArrowDownTrayIcon className="h-4 w-4" />
+                                                Download Template
+                                            </a>
+                                            <p className="mt-1 text-xs text-gray-500">Use this template for the required production week columns.</p>
+                                        </div>
+
+                                        <div>
+                                            <label className="mb-1.5 block text-sm font-semibold text-gray-700">
+                                                Excel File <span className="text-red-500">*</span>
                                             </label>
                                             <input
                                                 ref={fileRef}
@@ -235,13 +316,47 @@ export default function Import({ customers = [] }) {
                                                 </div>
                                             )}
                                         </div>
+
+                                        <div className="flex items-end">
+                                            <div className="w-full">
+                                                <label className="mb-1.5 block text-sm font-semibold text-gray-700">
+                                                    Worksheet <span className="text-red-500">*</span>
+                                                </label>
+                                                <select
+                                                    value={selectedSheet}
+                                                    onChange={(event) => {
+                                                        const nextSheet = event.target.value;
+                                                        setSelectedSheet(nextSheet);
+                                                        setData("sheet", nextSheet);
+                                                        clearPreview();
+
+                                                        if (data.file && nextSheet) {
+                                                            buildPreview(data.file, nextSheet);
+                                                        }
+                                                    }}
+                                                    disabled={sheets.length === 0 || isBusy}
+                                                    className={`${inputCls()} disabled:bg-gray-50 disabled:text-gray-400`}
+                                                >
+                                                    {sheets.length === 0 ? (
+                                                        <option value="">Select file first</option>
+                                                    ) : (
+                                                        sheets.map((sheet, index) => (
+                                                            <option key={index} value={sheet}>
+                                                                {sheet}
+                                                            </option>
+                                                        ))
+                                                    )}
+                                                </select>
+                                                <p className="mt-1 text-xs text-gray-500">Preview reads the selected worksheet only.</p>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <div className="flex flex-col gap-3 border-t border-gray-100 bg-gray-50/60 px-5 py-4 sm:flex-row sm:items-center">
                                         <button
                                             type="button"
-                                            onClick={() => data.file && buildPreview(data.file)}
-                                            disabled={!data.file || isBusy}
+                                            onClick={() => data.file && selectedSheet && buildPreview(data.file, selectedSheet)}
+                                            disabled={!data.file || !selectedSheet || isBusy}
                                             className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#1D6F42] bg-white px-5 text-sm font-semibold text-[#1D6F42] transition-colors hover:bg-[#1D6F42] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                                         >
                                             <EyeIcon className="h-4 w-4" />
@@ -265,14 +380,30 @@ export default function Import({ customers = [] }) {
                                             Reset
                                         </button>
                                     </div>
+                                    <div className="border-t border-gray-100 px-5 py-3">
+                                        <p className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-500">
+                                            {importHelpText}
+                                        </p>
+                                    </div>
                                 </section>
 
                                 {previewing && (
-                                    <StatusBox tone="emerald" title="Reading Excel preview" text="Checking the first worksheet and validating the required columns." />
+                                    <StatusBox tone="emerald" title="Reading Excel preview" text="Checking the selected worksheet and validating the required columns." />
                                 )}
 
                                 {previewError && (
                                     <StatusBox tone="red" title="Preview needs attention" text={previewError} />
+                                )}
+
+                                {serverErrorMessages.length > 0 && (
+                                    <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                                        <p className="font-semibold">Validation errors:</p>
+                                        <ul className="mt-2 list-disc space-y-1 pl-5">
+                                            {serverErrorMessages.map((message, index) => (
+                                                <li key={index}>{message}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
                                 )}
 
                                 <PreviewTable preview={preview} />
@@ -281,6 +412,16 @@ export default function Import({ customers = [] }) {
                     </form>
                 </div>
             </div>
+
+            <style>{`
+                @keyframes slideDown {
+                    from { opacity: 0; transform: translateY(-8px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                .animate-slideDown {
+                    animation: slideDown 0.25s ease-out;
+                }
+            `}</style>
         </AdminLayout>
     );
 }
@@ -288,9 +429,11 @@ export default function Import({ customers = [] }) {
 function FormatGuide() {
     const columns = [
         { key: "A", label: "Month", example: "JAN" },
-        { key: "B", label: "Date Range", example: "05/JAN ~ 30/JAN (4)" },
+        { key: "B", label: "Date Range", example: "05/JAN ~ 30/JAN" },
         { key: "C", label: "Year", example: "2026" },
         { key: "D", label: "Total Weeks", example: "3, 4, or 5" },
+        { key: "E", label: "Holiday Dates", example: "12/JAN, 26/JAN" },
+        { key: "F", label: "Extra Working Dates", example: "10/JAN" },
     ];
 
     return (
@@ -303,12 +446,12 @@ function FormatGuide() {
                     <div>
                         <h2 className="text-sm font-semibold text-gray-900">Excel Format Requirements</h2>
                         <p className="mt-1 text-sm text-gray-600">
-                            Use the template structure below so the preview and importer can read the data correctly.
+                            Columns A-D are required. Columns E-F are optional working-day overrides.
                         </p>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
                     {columns.map((column) => (
                         <div key={column.key} className="rounded-lg border border-emerald-100 bg-white px-3 py-2">
                             <p className="text-[11px] font-semibold uppercase text-[#1D6F42]">Column {column.key}</p>
@@ -317,6 +460,43 @@ function FormatGuide() {
                         </div>
                     ))}
                 </div>
+            </div>
+        </div>
+    );
+}
+
+function Alert({ type, message, onClose }) {
+    const isSuccess = type === "success";
+    const isWarning = type === "warning";
+    const Icon = isSuccess ? CheckCircleIcon : ExclamationTriangleIcon;
+
+    return (
+        <div className="mb-6 animate-slideDown">
+            <div className={`flex items-center gap-3 rounded-xl border bg-white p-4 shadow-sm ${
+                isSuccess
+                    ? "border-l-4 border-l-[#1D6F42] border-gray-200"
+                    : isWarning
+                        ? "border-l-4 border-l-amber-500 border-gray-200"
+                        : "border-l-4 border-l-red-500 border-gray-200"
+            }`}>
+                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                    isSuccess
+                        ? "bg-green-50 text-[#1D6F42]"
+                        : isWarning
+                            ? "bg-amber-50 text-amber-600"
+                            : "bg-red-50 text-red-500"
+                }`}>
+                    <Icon className="h-5 w-5" />
+                </div>
+                <p className="flex-1 whitespace-pre-line text-sm font-medium text-gray-800">{message}</p>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                    aria-label="Close alert"
+                >
+                    <XMarkIcon className="h-4 w-4" />
+                </button>
             </div>
         </div>
     );
@@ -341,7 +521,7 @@ function PreviewTable({ preview }) {
                 <div>
                     <h2 className="text-sm font-semibold text-gray-900">Preview Data: {preview.sheetName}</h2>
                     <p className="mt-0.5 text-xs text-gray-500">
-                        Showing first {Math.min(preview.rows.length, PREVIEW_ROW_LIMIT)} of {preview.totalRows} data rows.
+                        Showing {preview.rows.length} of {preview.totalRows} data rows.
                     </p>
                 </div>
                 <div className="flex flex-wrap gap-2 text-xs font-semibold">
@@ -356,14 +536,16 @@ function PreviewTable({ preview }) {
             </div>
 
             <div className="overflow-x-auto">
-                <table className="w-full min-w-[760px] table-fixed">
+                <table className="w-full min-w-[980px] table-fixed">
                     <colgroup>
                         <col className="w-[8%]" />
                         <col className="w-[13%]" />
-                        <col className="w-[32%]" />
+                        <col className="w-[24%]" />
                         <col className="w-[13%]" />
                         <col className="w-[12%]" />
-                        <col className="w-[22%]" />
+                        <col className="w-[13%]" />
+                        <col className="w-[13%]" />
+                        <col className="w-[17%]" />
                     </colgroup>
                     <thead>
                         <tr className="bg-gray-100/80 border-b border-gray-200">
@@ -372,6 +554,8 @@ function PreviewTable({ preview }) {
                             <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-700">Date Range</th>
                             <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-700">Year</th>
                             <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-700">Weeks</th>
+                            <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-700">Holidays</th>
+                            <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-700">Extra Days</th>
                             <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-700">Status</th>
                         </tr>
                     </thead>
@@ -389,6 +573,12 @@ function PreviewTable({ preview }) {
                                 </td>
                                 <td className="px-4 py-3 text-sm font-mono text-gray-700">{row.year || "-"}</td>
                                 <td className="px-4 py-3 text-sm font-semibold text-gray-700">{row.totalWeeks || "-"}</td>
+                                <td className="px-4 py-3 text-xs text-gray-600">
+                                    <span className="block truncate" title={row.holidayDates}>{row.holidayDates || "-"}</span>
+                                </td>
+                                <td className="px-4 py-3 text-xs text-gray-600">
+                                    <span className="block truncate" title={row.extraWorkingDates}>{row.extraWorkingDates || "-"}</span>
+                                </td>
                                 <td className="px-4 py-3">
                                     {row.errors.length === 0 ? (
                                         <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
@@ -404,7 +594,7 @@ function PreviewTable({ preview }) {
                             </tr>
                         )) : (
                             <tr>
-                                <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-400">
+                                <td colSpan={8} className="px-4 py-10 text-center text-sm text-gray-400">
                                     No data rows found.
                                 </td>
                             </tr>
@@ -435,11 +625,29 @@ function StatusBox({ tone, title, text }) {
     );
 }
 
+function findProductionWeekHeaderIndex(rows) {
+    const index = rows.findIndex((row) => {
+        const headers = row.map((value) => String(value ?? "").trim().toLowerCase());
+
+        return headers.includes("month")
+            && headers.includes("year")
+            && headers.includes("total weeks");
+    });
+
+    if (index === -1) {
+        throw new Error("Header row not found");
+    }
+
+    return index;
+}
+
 function parsePreviewRow(row, rowNumber) {
     const month = String(row[0] ?? "").trim().toUpperCase();
     const rangeText = String(row[1] ?? "").trim();
     const year = String(row[2] ?? "").trim();
     const totalWeeks = String(row[3] ?? "").trim();
+    const holidayDates = String(row[4] ?? "").trim();
+    const extraWorkingDates = String(row[5] ?? "").trim();
     const errors = [];
     const rangeStartMatch = rangeText.toUpperCase().match(/(\d{1,2})\/([A-Z]{3})/);
     const rangeWeeksMatch = rangeText.match(/\((\d+)\)/);
@@ -482,8 +690,10 @@ function parsePreviewRow(row, rowNumber) {
         rangeText,
         year,
         totalWeeks,
+        holidayDates,
+        extraWorkingDates,
         errors,
-        hasData: [month, rangeText, year, totalWeeks].some(Boolean),
+        hasData: [month, rangeText, year, totalWeeks, holidayDates, extraWorkingDates].some(Boolean),
     };
 }
 

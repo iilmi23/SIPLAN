@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Customer extends Model
 {
     //
-    protected $fillable = ['name', 'code', 'keterangan'];
+    protected $fillable = ['name', 'code'];
 
     public function ports()
     {
@@ -17,6 +17,11 @@ class Customer extends Model
     public function uploadBatches()
     {
         return $this->hasMany(UploadBatch::class);
+    }
+
+    public function sppRecords()
+    {
+        return $this->hasMany(SPP::class, 'customer_id');
     }
 
     public function srMappingTemplates()

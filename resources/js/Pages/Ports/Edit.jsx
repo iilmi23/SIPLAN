@@ -6,7 +6,6 @@ export default function Edit({ customer, port }) {
 
     const { data, setData, put, processing, errors } = useForm({
         name: port.name,
-        description: port.description || ""
     });
 
     const submit = (e) => {
@@ -56,20 +55,6 @@ export default function Edit({ customer, port }) {
                                 {errors.name && (
                                     <p className="text-red-500 text-sm mt-1">{errors.name}</p>
                                 )}
-                            </div>
-
-                            {/* Description */}
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                                    Description
-                                </label>
-                                <textarea
-                                    rows="4"
-                                    value={data.description}
-                                    onChange={(e) => setData("description", e.target.value)}
-                                    placeholder="Enter description"
-                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6F42]/20 focus:border-[#1D6F42]"
-                                />
                             </div>
 
                             {/* Buttons */}

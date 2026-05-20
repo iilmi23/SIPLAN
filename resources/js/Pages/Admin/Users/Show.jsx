@@ -1,163 +1,125 @@
-import AdminLayout from '@/Layouts/AdminLayout';
-import { Head, Link } from '@inertiajs/react';
-import { FaArrowLeft, FaEdit, FaUser, FaEnvelope, FaShieldAlt, FaCalendar } from 'react-icons/fa';
+import AdminLayout from "@/Layouts/AdminLayout";
+import Breadcrumb from "@/Components/Admin/Breadcrumb";
+import { Head, Link } from "@inertiajs/react";
+import { CalendarDaysIcon, EnvelopeIcon, PencilIcon, ShieldCheckIcon, UserCircleIcon } from "@heroicons/react/24/outline";
 
-export default function Show({ user }) {
-    const getRoleBadge = (role) => {
-        const badges = {
-            admin: 'bg-red-100 text-red-800',
-            ppc: 'bg-blue-100 text-blue-800',
-        };
-        return badges[role] || 'bg-gray-100 text-gray-800';
-    };
+const roleBadge = (role) => ({
+    admin: "bg-red-50 text-red-700 border-red-100",
+    ppc: "bg-blue-50 text-blue-700 border-blue-100",
+}[role] || "bg-gray-50 text-gray-700 border-gray-100");
 
-    const getRoleLabel = (role) => {
-        const labels = {
-            admin: 'Admin',
-            ppc: 'PPC',
-        };
-        return labels[role] || role;
-    };
+const roleLabel = (role) => ({
+    admin: "Admin",
+    ppc: "PPC",
+}[role] || role);
+
+export default function Show({ user, permissionCatalog = {} }) {
+    const selected = user.permissions || [];
 
     return (
         <AdminLayout title="User Details">
             <Head title="User Details | SIPLAN" />
+            <div className="min-h-screen bg-gray-50/40 pt-2 pb-8 px-5 md:px-8 font-sans">
+                <Breadcrumb items={[{ label: "System" }, { label: "Users", href: route("users.index") }, { label: "Details" }]} />
 
-            <div className="min-h-screen bg-gray-50/40 pt-2 pb-8 px-5 md:px-8">
-                {/* Header */}
-                <div className="mb-8">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <Link
-                                href={route('users.index')}
-                                className="text-gray-600 hover:text-gray-800"
-                            >
-                                <FaArrowLeft className="w-5 h-5" />
-                            </Link>
-                            <div>
-                                <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
-                                    User Details
-                                </h1>
-                                <p className="text-gray-500 mt-1">
-                                    View user information and account details
-                                </p>
-                            </div>
-                        </div>
-                        <Link
-                            href={route('users.edit', user.id)}
-                            className="inline-flex items-center gap-2 bg-[#1D6F42] hover:bg-green-800 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-                        >
-                            <FaEdit className="w-4 h-4" />
-                            Edit User
-                        </Link>
-                    </div>
-                </div>
-
-                {/* User Details Card */}
-                <div className="max-w-4xl">
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                        {/* Header */}
-                        <div className="bg-gradient-to-r from-[#1D6F42] to-[#22854e] px-8 py-6">
-                            <div className="flex items-center gap-6">
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden max-w-5xl">
+                    <div className="p-6 pb-4 border-b border-gray-100">
+                        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                            <div className="flex items-center gap-4">
                                 <img
-                                    className="h-20 w-20 rounded-full border-4 border-white/30"
-                                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=ffffff&color=1D6F42&size=128`}
+                                    className="h-14 w-14 rounded-2xl"
+                                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=1D6F42&color=fff&size=128`}
                                     alt={user.name}
                                 />
-                                <div className="text-white">
-                                    <h2 className="text-2xl font-bold">{user.name}</h2>
-                                    <p className="text-green-100">{user.email}</p>
-                                    <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full mt-2 ${getRoleBadge(user.role)}`}>
-                                        {getRoleLabel(user.role)}
-                                    </span>
+                                <div>
+                                    <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">{user.name}</h1>
+                                    <p className="text-sm text-gray-500 mt-1">User account details and access summary.</p>
                                 </div>
+                            </div>
+                            <Link
+                                href={route("users.edit", user.id)}
+                                className="inline-flex items-center justify-center gap-2 h-11 px-5 bg-[#1D6F42] text-white text-sm font-medium rounded-xl hover:bg-[#185c38] transition-all shadow-sm active:scale-[0.98]"
+                            >
+                                <PencilIcon className="w-5 h-5" />
+                                Edit User
+                            </Link>
+                        </div>
+                    </div>
+
+                    <div className="p-6 space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4">
+                                <div className="flex items-center gap-2 text-sm font-semibold text-gray-500 mb-2">
+                                    <UserCircleIcon className="w-5 h-5 text-[#1D6F42]" />
+                                    Full Name
+                                </div>
+                                <p className="text-sm font-semibold text-gray-900">{user.name}</p>
+                            </div>
+                            <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4">
+                                <div className="flex items-center gap-2 text-sm font-semibold text-gray-500 mb-2">
+                                    <EnvelopeIcon className="w-5 h-5 text-[#1D6F42]" />
+                                    Email
+                                </div>
+                                <p className="text-sm font-semibold text-gray-900 break-all">{user.email}</p>
+                            </div>
+                            <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4">
+                                <div className="flex items-center gap-2 text-sm font-semibold text-gray-500 mb-2">
+                                    <ShieldCheckIcon className="w-5 h-5 text-[#1D6F42]" />
+                                    Role
+                                </div>
+                                <span className={`inline-flex px-2.5 py-1 text-xs font-semibold rounded-full border ${roleBadge(user.role)}`}>
+                                    {roleLabel(user.role)}
+                                </span>
                             </div>
                         </div>
 
-                        {/* Content */}
-                        <div className="p-8">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                {/* Basic Information */}
+                        <div className="rounded-2xl border border-gray-200 overflow-hidden">
+                            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
                                 <div>
-                                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                                        <FaUser className="w-5 h-5 text-[#1D6F42]" />
-                                        Basic Information
-                                    </h3>
-                                    <div className="space-y-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-500">Full Name</label>
-                                            <p className="mt-1 text-sm text-gray-900">{user.name}</p>
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-500">Email Address</label>
-                                            <p className="mt-1 text-sm text-gray-900">{user.email}</p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Role & Permissions */}
-                                <div>
-                                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                                        <FaShieldAlt className="w-5 h-5 text-[#1D6F42]" />
-                                        Role & Permissions
-                                    </h3>
-                                    <div className="space-y-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-500">Role</label>
-                                            <p className="mt-1">
-                                                <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${getRoleBadge(user.role)}`}>
-                                                    {getRoleLabel(user.role)}
-                                                </span>
-                                            </p>
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-500">Permissions</label>
-                                            <div className="mt-1 space-y-1">
-                                                {user.role === 'admin' && (
-                                                    <div className="text-sm text-gray-900">
-                                                        • Full system access<br/>
-                                                        • User management<br/>
-                                                        • Master data management<br/>
-                                                        • System settings<br/>
-                                                        • Debug tools
-                                                    </div>
-                                                )}
-                                                {user.role === 'ppc' && (
-                                                    <div className="text-sm text-gray-900">
-                                                        • SR upload and management<br/>
-                                                        • Production week, carline, and assy master access<br/>
-                                                        • SPP tracking<br/>
-                                                        • Summary reports<br/>
-                                                        • History access
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
+                                    <h2 className="text-sm font-semibold text-gray-900">Permissions</h2>
+                                    <p className="text-xs text-gray-500 mt-1">{selected.length} sidebar permissions enabled.</p>
                                 </div>
                             </div>
-
-                            {/* Account Information */}
-                            <div className="mt-8 pt-8 border-t border-gray-200">
-                                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                                    <FaCalendar className="w-5 h-5 text-[#1D6F42]" />
-                                    Account Information
-                                </h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-500">Account Created</label>
-                                        <p className="mt-1 text-sm text-gray-900">
-                                            {new Date(user.created_at).toLocaleDateString('en-US', {
-                                                year: 'numeric',
-                                                month: 'long',
-                                                day: 'numeric',
-                                                hour: '2-digit',
-                                                minute: '2-digit'
+                            <div className="p-5 space-y-5">
+                                {Object.entries(permissionCatalog).map(([group, permissions]) => (
+                                    <div key={group}>
+                                        <p className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-500">{group}</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {permissions.map((permission) => {
+                                                const active = selected.includes(permission.key);
+                                                return (
+                                                    <span
+                                                        key={permission.key}
+                                                        className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${
+                                                            active
+                                                                ? "bg-[#1D6F42]/10 text-[#1D6F42] border-[#1D6F42]/20"
+                                                                : "bg-gray-50 text-gray-400 border-gray-200"
+                                                        }`}
+                                                    >
+                                                        {permission.label}
+                                                    </span>
+                                                );
                                             })}
-                                        </p>
+                                        </div>
                                     </div>
-                                </div>
+                                ))}
                             </div>
+                        </div>
+
+                        <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4">
+                            <div className="flex items-center gap-2 text-sm font-semibold text-gray-500 mb-2">
+                                <CalendarDaysIcon className="w-5 h-5 text-[#1D6F42]" />
+                                Account Created
+                            </div>
+                            <p className="text-sm font-semibold text-gray-900">
+                                {new Date(user.created_at).toLocaleDateString("en-GB", {
+                                    day: "2-digit",
+                                    month: "long",
+                                    year: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                })}
+                            </p>
                         </div>
                     </div>
                 </div>

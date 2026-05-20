@@ -1,204 +1,192 @@
-import AdminLayout from '@/Layouts/AdminLayout';
-import { Head, useForm, Link } from '@inertiajs/react';
-import { useState } from 'react';
-import { FaArrowLeft } from 'react-icons/fa';
+import AdminLayout from "@/Layouts/AdminLayout";
+import Breadcrumb from "@/Components/Admin/Breadcrumb";
+import { Head, Link, useForm } from "@inertiajs/react";
+import { useState } from "react";
+import { EyeIcon, EyeSlashIcon, UserPlusIcon } from "@heroicons/react/24/outline";
 
-export default function Create() {
+const roles = [
+    { value: "ppc", label: "PPC" },
+    { value: "admin", label: "Admin" },
+];
+
+function PermissionPanel({ catalog, selected, onToggle, errors }) {
+    const groups = Object.entries(catalog || {});
+
+    return (
+        <div>
+            <div className="flex items-center justify-between gap-3 mb-3">
+                <div>
+                    <label className="block text-sm font-semibold text-gray-700">Permissions</label>
+                    <p className="text-xs text-gray-500 mt-1">Controls which sidebar menus this user can access.</p>
+                </div>
+                <span className="text-xs font-semibold text-gray-500">{selected.length} selected</span>
+            </div>
+            <div className="space-y-4 rounded-xl border border-gray-200 bg-gray-50/60 p-4">
+                {groups.map(([group, permissions]) => (
+                    <div key={group}>
+                        <p className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-500">{group}</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {permissions.map((permission) => (
+                                <label key={permission.key} className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 hover:border-[#1D6F42]/40">
+                                    <input
+                                        type="checkbox"
+                                        checked={selected.includes(permission.key)}
+                                        onChange={() => onToggle(permission.key)}
+                                        className="rounded border-gray-300 text-[#1D6F42] focus:ring-[#1D6F42]"
+                                    />
+                                    <span>{permission.label}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                ))}
+            </div>
+            {errors.permissions && <p className="mt-1 text-sm text-red-600">{errors.permissions}</p>}
+        </div>
+    );
+}
+
+export default function Create({ permissionCatalog = {}, roleDefaults = {} }) {
     const { data, setData, post, processing, errors } = useForm({
-        name: '',
-        email: '',
-        password: '',
-        password_confirmation: '',
-        role: 'ppc',
+        name: "",
+        email: "",
+        role: "ppc",
+        permissions: roleDefaults.ppc || [],
+        password: "",
+        password_confirmation: "",
     });
-
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-    const submit = (e) => {
-        e.preventDefault();
-        post(route('users.store'));
+    const submit = (event) => {
+        event.preventDefault();
+        post(route("users.store"));
     };
 
-    const roles = [
-        { value: 'ppc', label: 'PPC' },
-        { value: 'admin', label: 'Admin' },
-    ];
+    const togglePermission = (permission) => {
+        const selected = data.permissions || [];
+        setData("permissions", selected.includes(permission)
+            ? selected.filter((item) => item !== permission)
+            : [...selected, permission]
+        );
+    };
 
     return (
         <AdminLayout title="Create User">
             <Head title="Create User | SIPLAN" />
+            <div className="min-h-screen bg-gray-50/40 pt-2 pb-8 px-5 md:px-8 font-sans">
+                <Breadcrumb items={[{ label: "System" }, { label: "Users", href: route("users.index") }, { label: "Create" }]} />
 
-            <div className="min-h-screen bg-gray-50/40 pt-2 pb-8 px-5 md:px-8">
-                {/* Header */}
-                <div className="mb-8">
-                    <div className="flex items-center gap-4">
-                        <Link
-                            href={route('users.index')}
-                            className="text-gray-600 hover:text-gray-800"
-                        >
-                            <FaArrowLeft className="w-5 h-5" />
-                        </Link>
-                        <div>
-                            <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
-                                Create New User
-                            </h1>
-                            <p className="text-gray-500 mt-1">
-                                Add a new user to the system
-                            </p>
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden max-w-4xl">
+                    <div className="p-6 pb-4 border-b border-gray-100">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-[#1D6F42]/10 text-[#1D6F42] flex items-center justify-center">
+                                <UserPlusIcon className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Add New User</h1>
+                                <p className="text-sm text-gray-500 mt-1">Create an account and assign sidebar access.</p>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                {/* Form */}
-                <div className="max-w-2xl">
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+                    <div className="p-6">
                         <form onSubmit={submit} className="space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">Full Name <span className="text-red-500">*</span></label>
+                                    <input
+                                        type="text"
+                                        value={data.name}
+                                        onChange={(event) => setData("name", event.target.value)}
+                                        className="w-full h-11 px-4 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6F42]/20 focus:border-[#1D6F42]"
+                                        placeholder="Enter full name"
+                                        required
+                                    />
+                                    {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
+                                </div>
 
-                            {/* Name */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Full Name
-                                </label>
-                                <input
-                                    type="text"
-                                    value={data.name}
-                                    onChange={(e) => setData('name', e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1D6F42] focus:border-[#1D6F42] transition-colors"
-                                    placeholder="Enter full name"
-                                    required
-                                />
-                                {errors.name && (
-                                    <p className="mt-1 text-sm text-red-600">{errors.name}</p>
-                                )}
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">Email Address <span className="text-red-500">*</span></label>
+                                    <input
+                                        type="email"
+                                        value={data.email}
+                                        onChange={(event) => setData("email", event.target.value)}
+                                        className="w-full h-11 px-4 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6F42]/20 focus:border-[#1D6F42]"
+                                        placeholder="name@example.com"
+                                        required
+                                    />
+                                    {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
+                                </div>
                             </div>
 
-                            {/* Email */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Email Address
-                                </label>
-                                <input
-                                    type="email"
-                                    value={data.email}
-                                    onChange={(e) => setData('email', e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1D6F42] focus:border-[#1D6F42] transition-colors"
-                                    placeholder="Enter email address"
-                                    required
-                                />
-                                {errors.email && (
-                                    <p className="mt-1 text-sm text-red-600">{errors.email}</p>
-                                )}
-                            </div>
-
-                            {/* Role */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Role
-                                </label>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Role <span className="text-red-500">*</span></label>
                                 <select
                                     value={data.role}
-                                    onChange={(e) => setData('role', e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1D6F42] focus:border-[#1D6F42] transition-colors"
+                                    onChange={(event) => {
+                                        const nextRole = event.target.value;
+                                        setData({ ...data, role: nextRole, permissions: roleDefaults[nextRole] || [] });
+                                    }}
+                                    className="w-full h-11 px-4 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6F42]/20 focus:border-[#1D6F42]"
                                     required
                                 >
-                                    {roles.map((role) => (
-                                        <option key={role.value} value={role.value}>
-                                            {role.label}
-                                        </option>
-                                    ))}
+                                    {roles.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}
                                 </select>
-                                {errors.role && (
-                                    <p className="mt-1 text-sm text-red-600">{errors.role}</p>
-                                )}
+                                {errors.role && <p className="text-red-500 text-sm mt-1">{errors.role}</p>}
                             </div>
 
-                            {/* Password */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Password
-                                </label>
-                                <div className="relative">
-                                    <input
-                                        type={showPassword ? 'text' : 'password'}
-                                        value={data.password}
-                                        onChange={(e) => setData('password', e.target.value)}
-                                        className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1D6F42] focus:border-[#1D6F42] transition-colors"
-                                        placeholder="Enter password"
-                                        required
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
-                                    >
-                                        {showPassword ? (
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
-                                            </svg>
-                                        ) : (
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                            </svg>
-                                        )}
-                                    </button>
+                            <PermissionPanel
+                                catalog={permissionCatalog}
+                                selected={data.permissions || []}
+                                onToggle={togglePermission}
+                                errors={errors}
+                            />
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">Password <span className="text-red-500">*</span></label>
+                                    <div className="relative">
+                                        <input
+                                            type={showPassword ? "text" : "password"}
+                                            value={data.password}
+                                            onChange={(event) => setData("password", event.target.value)}
+                                            className="w-full h-11 px-4 pr-11 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6F42]/20 focus:border-[#1D6F42]"
+                                            placeholder="Enter password"
+                                            required
+                                        />
+                                        <button type="button" onClick={() => setShowPassword((value) => !value)} className="absolute inset-y-0 right-0 px-3 text-gray-400 hover:text-gray-600">
+                                            {showPassword ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
+                                        </button>
+                                    </div>
+                                    {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
                                 </div>
-                                {errors.password && (
-                                    <p className="mt-1 text-sm text-red-600">{errors.password}</p>
-                                )}
-                            </div>
 
-                            {/* Confirm Password */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Confirm Password
-                                </label>
-                                <div className="relative">
-                                    <input
-                                        type={showConfirmPassword ? 'text' : 'password'}
-                                        value={data.password_confirmation}
-                                        onChange={(e) => setData('password_confirmation', e.target.value)}
-                                        className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1D6F42] focus:border-[#1D6F42] transition-colors"
-                                        placeholder="Confirm password"
-                                        required
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
-                                    >
-                                        {showConfirmPassword ? (
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
-                                            </svg>
-                                        ) : (
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                            </svg>
-                                        )}
-                                    </button>
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">Confirm Password <span className="text-red-500">*</span></label>
+                                    <div className="relative">
+                                        <input
+                                            type={showConfirmPassword ? "text" : "password"}
+                                            value={data.password_confirmation}
+                                            onChange={(event) => setData("password_confirmation", event.target.value)}
+                                            className="w-full h-11 px-4 pr-11 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6F42]/20 focus:border-[#1D6F42]"
+                                            placeholder="Confirm password"
+                                            required
+                                        />
+                                        <button type="button" onClick={() => setShowConfirmPassword((value) => !value)} className="absolute inset-y-0 right-0 px-3 text-gray-400 hover:text-gray-600">
+                                            {showConfirmPassword ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
+                                        </button>
+                                    </div>
+                                    {errors.password_confirmation && <p className="text-red-500 text-sm mt-1">{errors.password_confirmation}</p>}
                                 </div>
-                                {errors.password_confirmation && (
-                                    <p className="mt-1 text-sm text-red-600">{errors.password_confirmation}</p>
-                                )}
                             </div>
 
-                            {/* Buttons */}
-                            <div className="flex gap-4 pt-4">
-                                <Link
-                                    href={route('users.index')}
-                                    className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors"
-                                >
+                            <div className="flex justify-end gap-3 pt-2">
+                                <Link href={route("users.index")} className="inline-flex items-center justify-center h-11 px-5 text-sm font-medium rounded-xl border border-gray-200 text-gray-700 bg-white hover:bg-gray-50 transition">
                                     Cancel
                                 </Link>
-                                <button
-                                    type="submit"
-                                    disabled={processing}
-                                    className="px-6 py-2 bg-[#1D6F42] hover:bg-green-800 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    {processing ? 'Creating...' : 'Create User'}
+                                <button type="submit" disabled={processing} className="inline-flex items-center justify-center h-11 px-5 bg-[#1D6F42] text-white text-sm font-medium rounded-xl hover:bg-[#185c38] transition disabled:opacity-50">
+                                    {processing ? "Saving..." : "Save User"}
                                 </button>
                             </div>
                         </form>

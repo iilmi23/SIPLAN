@@ -22,57 +22,44 @@ const MONTH_MAP = {
 const currentYear = new Date().getFullYear();
 
 export default function Create({ customers = [] }) {
-    const { data, setData, post, processing, errors } = useForm({
+    const { data, setData, post, processing, errors, transform } = useForm({
         customer_id: "",
         year: currentYear,
         month_number: "",
         month_name: "",
-        week_start: "",
+        start_date: "",
         end_date: "",
         num_weeks: 4,
+        working_days: {},
     });
 
-    const monthEndDate = useMemo(() => {
-        if (!data.year || !data.month_number) return "";
-
-        return buildMonthEndDate(data.year, data.month_number);
-    }, [data.year, data.month_number]);
-
     const weekPreview = useMemo(() => {
-        const totalWeeks = Number(data.num_weeks);
-        if (!data.week_start || !totalWeeks) return [];
+        return buildWeekPreview(data.start_date, data.end_date, data.num_weeks, data.working_days);
+    }, [data.start_date, data.end_date, data.num_weeks, data.working_days]);
 
-        return Array.from({ length: totalWeeks }, (_, index) => {
-            const start = addDays(data.week_start, index * 7);
-            const end = index === totalWeeks - 1 && data.end_date
-                ? data.end_date
-                : addDays(start, 6);
-
-            return {
-                week_no: index + 1,
-                start,
-                end,
-            };
-        });
-    }, [data.week_start, data.end_date, data.num_weeks]);
+    const totalWorkingDays = weekPreview.reduce((sum, week) => sum + week.working_days.length, 0);
 
     const selectedCustomer = customers.find((customer) => String(customer.id) === String(data.customer_id));
-    const calendarScope = selectedCustomer ? `${selectedCustomer.name} (${selectedCustomer.code})` : "Global";
+    const calendarScope = selectedCustomer ? `${selectedCustomer.code}` : "Global";
 
     const handleYearChange = (value) => {
         setData((prev) => {
-            const previousAutoStart = prev.year && prev.month_number ? buildDate(prev.year, prev.month_number, 1) : "";
-            const nextAutoStart = value && prev.month_number ? buildDate(value, prev.month_number, 1) : "";
-            const previousAutoEnd = prev.year && prev.month_number ? buildMonthEndDate(prev.year, prev.month_number) : "";
-            const nextAutoEnd = value && prev.month_number ? buildMonthEndDate(value, prev.month_number) : "";
-            const shouldAutoUpdateStart = !prev.week_start || prev.week_start === previousAutoStart;
+            const previousRange = prev.year && prev.month_number ? buildProductionMonthRange(prev.year, prev.month_number) : null;
+            const nextRange = value && prev.month_number ? buildProductionMonthRange(value, prev.month_number) : null;
+            const previousAutoStart = previousRange?.start_date ?? "";
+            const nextAutoStart = nextRange?.start_date ?? "";
+            const previousAutoEnd = previousRange?.end_date ?? "";
+            const nextAutoEnd = nextRange?.end_date ?? "";
+            const shouldAutoUpdateStart = !prev.start_date || prev.start_date === previousAutoStart;
             const shouldAutoUpdateEnd = !prev.end_date || prev.end_date === previousAutoEnd;
 
             return {
                 ...prev,
                 year: value,
-                week_start: shouldAutoUpdateStart ? nextAutoStart : prev.week_start,
+                start_date: shouldAutoUpdateStart ? nextAutoStart : prev.start_date,
                 end_date: shouldAutoUpdateEnd ? nextAutoEnd : prev.end_date,
+                num_weeks: shouldAutoUpdateStart && shouldAutoUpdateEnd && nextRange ? nextRange.num_weeks : prev.num_weeks,
+                working_days: {},
             };
         });
     };
@@ -81,26 +68,53 @@ export default function Create({ customers = [] }) {
         const monthNumber = parseInt(value, 10);
 
         setData((prev) => {
-            const previousAutoStart = prev.year && prev.month_number ? buildDate(prev.year, prev.month_number, 1) : "";
-            const nextAutoStart = prev.year && value ? buildDate(prev.year, value, 1) : "";
-            const previousAutoEnd = prev.year && prev.month_number ? buildMonthEndDate(prev.year, prev.month_number) : "";
-            const nextAutoEnd = prev.year && value ? buildMonthEndDate(prev.year, value) : "";
-            const shouldAutoUpdateStart = !prev.week_start || prev.week_start === previousAutoStart;
+            const previousRange = prev.year && prev.month_number ? buildProductionMonthRange(prev.year, prev.month_number) : null;
+            const nextRange = prev.year && value ? buildProductionMonthRange(prev.year, value) : null;
+            const previousAutoStart = previousRange?.start_date ?? "";
+            const nextAutoStart = nextRange?.start_date ?? "";
+            const previousAutoEnd = previousRange?.end_date ?? "";
+            const nextAutoEnd = nextRange?.end_date ?? "";
+            const shouldAutoUpdateStart = !prev.start_date || prev.start_date === previousAutoStart;
             const shouldAutoUpdateEnd = !prev.end_date || prev.end_date === previousAutoEnd;
 
             return {
                 ...prev,
                 month_number: value,
                 month_name: MONTH_MAP[monthNumber] ?? "",
-                week_start: shouldAutoUpdateStart ? nextAutoStart : prev.week_start,
+                start_date: shouldAutoUpdateStart ? nextAutoStart : prev.start_date,
                 end_date: shouldAutoUpdateEnd ? nextAutoEnd : prev.end_date,
+                num_weeks: shouldAutoUpdateStart && shouldAutoUpdateEnd && nextRange ? nextRange.num_weeks : prev.num_weeks,
+                working_days: {},
             };
         });
     };
 
     const handleSubmit = (e) => {
         e.preventDefault();
+        transform((payload) => ({
+            ...payload,
+            working_days: collectWorkingDays(weekPreview),
+        }));
         post(route("production-week.store"));
+    };
+
+    const toggleWorkingDay = (weekNo, date) => {
+        setData((prev) => {
+            const weekKey = String(weekNo);
+            const previewWeek = buildWeekPreview(prev.start_date, prev.end_date, prev.num_weeks, prev.working_days)
+                .find((week) => week.week_no === weekNo);
+            const currentDays = new Set(prev.working_days?.[weekKey] ?? previewWeek?.working_days ?? []);
+
+            currentDays.has(date) ? currentDays.delete(date) : currentDays.add(date);
+
+            return {
+                ...prev,
+                working_days: {
+                    ...(prev.working_days ?? {}),
+                    [weekKey]: Array.from(currentDays).sort(),
+                },
+            };
+        });
     };
 
     return (
@@ -123,6 +137,7 @@ export default function Create({ customers = [] }) {
                             <div className="flex flex-wrap gap-2">
                                 <SummaryPill label="Scope" value={calendarScope} />
                                 <SummaryPill label="Weeks" value={String(data.num_weeks || 0)} />
+                                <SummaryPill label="Working Days" value={String(totalWorkingDays)} />
                             </div>
                         </div>
 
@@ -145,7 +160,7 @@ export default function Create({ customers = [] }) {
                                                     <option value="">Global (all customers)</option>
                                                     {customers.map((customer) => (
                                                         <option key={customer.id} value={customer.id}>
-                                                            {customer.name} ({customer.code})
+                                                            {customer.code}
                                                         </option>
                                                     ))}
                                                 </select>
@@ -181,14 +196,14 @@ export default function Create({ customers = [] }) {
                                         <FormField
                                             label="First week start date"
                                             required
-                                            error={errors.week_start}
-                                            hint="This date becomes the start date for week 1."
+                                            error={errors.start_date}
+                                            // hint="This date becomes the start date for week 1."
                                         >
                                             <input
                                                 type="date"
-                                                value={data.week_start}
-                                                onChange={(e) => setData("week_start", e.target.value)}
-                                                className={inputCls(errors.week_start)}
+                                                value={data.start_date}
+                                                readOnly
+                                                className={inputCls(errors.start_date)}
                                             />
                                         </FormField>
 
@@ -196,12 +211,12 @@ export default function Create({ customers = [] }) {
                                             label="End Date"
                                             required
                                             error={errors.end_date}
-                                            hint={monthEndDate ? `Default akhir bulan: ${formatDate(monthEndDate)}` : "Tanggal akhir range bulan ini."}
+                                            // hint={monthEndDate ? `Default akhir bulan: ${formatDate(monthEndDate)}` : "Tanggal akhir range bulan ini."}
                                         >
                                             <input
                                                 type="date"
                                                 value={data.end_date}
-                                                onChange={(e) => setData("end_date", e.target.value)}
+                                                readOnly
                                                 className={inputCls(errors.end_date)}
                                             />
                                         </FormField>
@@ -212,11 +227,11 @@ export default function Create({ customers = [] }) {
                                                     <button
                                                         key={weekCount}
                                                         type="button"
-                                                        onClick={() => setData("num_weeks", weekCount)}
+                                                        disabled
                                                         className={`h-10 rounded-lg text-sm font-semibold border transition-all ${
                                                             Number(data.num_weeks) === weekCount
                                                                 ? "bg-[#1D6F42] text-white border-[#1D6F42]"
-                                                                : "bg-white text-gray-600 border-gray-200 hover:border-[#1D6F42]/40"
+                                                                : "bg-white text-gray-400 border-gray-200"
                                                         }`}
                                                     >
                                                         {weekCount}
@@ -230,7 +245,7 @@ export default function Create({ customers = [] }) {
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                             <InfoStrip label="Month" value={data.month_name || "-"} />
                                             <InfoStrip label="End Date" value={data.end_date ? formatDate(data.end_date) : "-"} />
-                                            <InfoStrip label="Rows created" value={`${Number(data.num_weeks) || 0} weeks`} />
+                                            <InfoStrip label="Working Days" value={`${totalWorkingDays} days`} />
                                         </div>
                                     </div>
                                 </div>
@@ -246,15 +261,38 @@ export default function Create({ customers = [] }) {
                                     <div className="mt-5 space-y-2">
                                         {weekPreview.length > 0 ? (
                                             weekPreview.map((week) => (
-                                                <div key={week.week_no} className="flex items-center justify-between gap-3 border-b border-gray-200/70 py-3 last:border-b-0">
-                                                    <div className="min-w-0">
-                                                        <p className="text-sm font-semibold text-[#1D6F42]">Week {week.week_no}</p>
-                                                        <p className="text-xs text-gray-500">Production range</p>
+                                                <div key={week.week_no} className="border-b border-gray-200/70 py-3 last:border-b-0">
+                                                    <div className="mb-3 flex items-center justify-between gap-3">
+                                                        <div className="min-w-0">
+                                                            <p className="text-sm font-semibold text-[#1D6F42]">Week {week.week_no}</p>
+                                                            <p className="text-xs text-gray-500">{week.working_days.length} working days</p>
+                                                        </div>
+                                                        <p className="text-right text-xs font-mono text-gray-700">
+                                                            {formatDate(week.start)}<br />
+                                                            {formatDate(week.end)}
+                                                        </p>
                                                     </div>
-                                                    <p className="text-right text-xs font-mono text-gray-700">
-                                                        {formatDate(week.start)}<br />
-                                                        {formatDate(week.end)}
-                                                    </p>
+                                                    <div className="grid grid-cols-4 gap-2">
+                                                        {week.days.map((day) => (
+                                                            <label
+                                                                key={day.date}
+                                                                className={`flex cursor-pointer flex-col rounded-lg border px-2 py-1.5 transition-all ${
+                                                                    day.checked
+                                                                        ? "border-[#1D6F42] bg-emerald-50 text-[#1D6F42]"
+                                                                        : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+                                                                }`}
+                                                            >
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={day.checked}
+                                                                    onChange={() => toggleWorkingDay(week.week_no, day.date)}
+                                                                    className="sr-only"
+                                                                />
+                                                                <span className="text-[10px] font-medium uppercase">{day.dayName}</span>
+                                                                <span className="mt-0.5 text-sm font-semibold">{day.dayNumber}</span>
+                                                            </label>
+                                                        ))}
+                                                    </div>
                                                 </div>
                                             ))
                                         ) : (
@@ -332,17 +370,96 @@ function InfoStrip({ label, value }) {
 
 const pad = (value) => String(value).padStart(2, "0");
 
-const buildDate = (year, month, day) => `${year}-${pad(month)}-${pad(day)}`;
+const productionMonthStart = (year, month) => {
+    const firstOfMonth = new Date(Number(year), Number(month) - 1, 1);
+    const start = new Date(firstOfMonth);
+    const day = start.getDay() || 7;
+    start.setDate(start.getDate() + 1 - day);
 
-const buildMonthEndDate = (year, month) => {
-    const end = new Date(Number(year), Number(month), 0);
-    return toDateInput(end);
+    if (start.getMonth() !== firstOfMonth.getMonth()) {
+        const previousMonthLastDay = new Date(firstOfMonth.getFullYear(), firstOfMonth.getMonth(), 0).getDate();
+        const previousMonthRemainingDays = previousMonthLastDay - start.getDate() + 1;
+
+        if (previousMonthRemainingDays > 1) {
+            start.setDate(start.getDate() + 7);
+        }
+    }
+
+    return start;
+};
+
+const buildProductionMonthRange = (year, month) => {
+    const start = productionMonthStart(year, month);
+    const nextMonth = Number(month) === 12 ? 1 : Number(month) + 1;
+    const nextYear = Number(month) === 12 ? Number(year) + 1 : Number(year);
+    const nextStart = productionMonthStart(nextYear, nextMonth);
+    const end = new Date(nextStart);
+    end.setDate(end.getDate() - 1);
+
+    return {
+        start_date: toDateInput(start),
+        end_date: toDateInput(end),
+        num_weeks: Math.round((end - start) / 86400000 / 7) + 1,
+    };
 };
 
 const addDays = (value, days) => {
     const date = new Date(`${value}T00:00:00`);
     date.setDate(date.getDate() + days);
     return toDateInput(date);
+};
+
+const buildWeekPreview = (startDate, endDate, totalWeeks, selectedWorkingDays = {}) => {
+    const count = Number(totalWeeks);
+    if (!startDate || !count) return [];
+
+    return Array.from({ length: count }, (_, index) => {
+        const weekNo = index + 1;
+        const start = addDays(startDate, index * 7);
+        const end = index === count - 1 && endDate ? endDate : addDays(start, 6);
+        const days = datesBetween(start, end);
+        const weekKey = String(weekNo);
+        const hasCustomSelection = Object.prototype.hasOwnProperty.call(selectedWorkingDays ?? {}, weekKey);
+        const selected = new Set(hasCustomSelection ? selectedWorkingDays[weekKey] : days.filter((day) => day.isWeekday).map((day) => day.date));
+
+        return {
+            week_no: weekNo,
+            start,
+            end,
+            working_days: days.filter((day) => selected.has(day.date)).map((day) => day.date),
+            days: days.map((day) => ({
+                ...day,
+                checked: selected.has(day.date),
+            })),
+        };
+    });
+};
+
+const collectWorkingDays = (weeks) => weeks.reduce((result, week) => ({
+    ...result,
+    [week.week_no]: week.working_days,
+}), {});
+
+const datesBetween = (startDate, endDate) => {
+    const dates = [];
+    const current = new Date(`${startDate}T00:00:00`);
+    const end = new Date(`${endDate}T00:00:00`);
+
+    while (current <= end) {
+        const date = toDateInput(current);
+        const day = current.getDay();
+
+        dates.push({
+            date,
+            dayName: current.toLocaleDateString("id-ID", { weekday: "short" }),
+            dayNumber: String(current.getDate()).padStart(2, "0"),
+            isWeekday: day >= 1 && day <= 5,
+        });
+
+        current.setDate(current.getDate() + 1);
+    }
+
+    return dates;
 };
 
 const toDateInput = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;

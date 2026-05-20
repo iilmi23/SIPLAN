@@ -6,93 +6,46 @@ use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 /**
- * SAIMapper — mapper untuk sheet "List Order" customer SAI (PT. Jatim Autocomp Indonesia)
+ * Mapper SAI untuk format "List Order".
  *
- * ═══════════════════════════════════════════════════════════════════════════════
- * STRUKTUR EXCEL SAI — "List Order" sheet
- * ═══════════════════════════════════════════════════════════════════════════════
+ * Struktur utama:
+ * - Row 4: label FIRM/FORECAST per kolom.
+ * - Row 6-8: PO utama dan PO tambahan.
+ * - Row 9-10: ETD JAI dan ETA SAI.
+ * - Row 11: header, dengan assy number di kolom B.
+ * - Row 13+: baris qty; baris CUM dilewati.
  *
- *  Row  1  : SEND DATE (C1 = tanggal pengiriman sheet)
- *  Row  2  : Week counter (incremental integer per kolom)
- *  Row  3  : Label "<  ORDER SHEET >"
- *  Row  4  : FIRM / FORECAST label  → "FIRM JAN W1", "FORECAST APRIL W3", dll.
- *              ⚠ Hanya kolom PERTAMA tiap kelompok minggu yang berisi label;
- *                kolom kedua (sub-PO) selalu kosong → di-inherit dari kolom sebelumnya
- *  Row  5  : SHIP BY  (TRUCK / AIR / dll.)
- *  Row  6  : P/O #   → kode PO utama per kolom  (JL60421, JL60422, …)
- *  Row  7  : P/O # tambahan A (optional, mis. JL60111A)
- *  Row  8  : P/O # tambahan B (optional, mis. JL60331B)
- *  Row  9  : ETD : JAI  → tanggal ETD dari Jatim Autocomp Indonesia
- *  Row 10  : ETA : SAI  → tanggal ETA tiba di SAI
- *  Row 11  : Header kolom: No. | PART NUMBER | BUPPIN | Last Cum | QTY…
- *  Row 12  : Kosong (spacer)
- *  Row 13+ : Data baris QTY (part rows) — selang-seling dengan baris CUM:
- *              Baris ODD  (13,15,17,…) = data QTY per part (A=No., B=PART NUMBER)
- *              Baris EVEN (14,16,18,…) = baris CUM (C='CUM') → di-skip
- *
- * KOLOM:
- *  A (0) = No.
- *  B (1) = PART NUMBER  ← field utama
- *  C (2) = BUPPIN (nama alternatif part)
- *  D (3) = Last Cum
- *  E (4) = HIDDEN (kolom E selalu hidden di SAI) → di-skip
- *  F (5)+ = QTY per kolom PO
- *
- *  Total kolom data = 46 kolom visible (col F s/d AY, minus col E yang hidden)
- *  Kolom TOTAL FORECAST (AZ+) = summary, bukan data order → di-skip
- *
- * ═══════════════════════════════════════════════════════════════════════════════
- * PERBEDAAN KUNCI vs TYCMapper
- * ═══════════════════════════════════════════════════════════════════════════════
- *
- *  | Aspek                  | TYC                          | SAI                              |
- *  |------------------------|------------------------------|----------------------------------|
- *  | Sheet name             | JAI / nama bebas             | "List Order"                     |
- *  | Time chart row         | Ada (YYYY/M, 1W, 2W, …)      | TIDAK ADA — pakai label di row 4 |
- *  | Firm/Forecast row      | Row 12 (index 12)            | Row 4 (index 3)                  |
- *  | PO# row                | Tidak ada                    | Row 6 (index 5) + row 7+8 extra  |
- *  | ETD row                | ETD PORT SUR                 | Row 9 label "ETD : JAI"          |
- *  | ETA row                | ETA PORT KAO                 | Row 10 label "ETA : SAI"         |
- *  | Header row             | Row 19 (index 18)            | Row 11 (index 10)                |
- *  | Data col start         | Cari anchor YYYY/M           | Cari kolom pertama yang ada PO#  |
- *  | Part number col        | "PRODUCT NO"                 | "PART NUMBER" (col B, index 1)   |
- *  | CUM rows               | Tidak ada                    | Ada, setiap baris genap → skip   |
- *  | Sub-label inherit      | 2W/3W/4W/5W                  | Kolom ke-2 tiap pair (null row4) |
- *  | TOTAL FORECAST cols    | Tidak ada                    | Ada (AZ+) → harus di-stop        |
- *  | Model / Family         | Ada di header row            | Tidak ada                        |
- *  | Port                   | KAO                          | SAI                              |
- *  | Route                  | SEA                          | TRUCK (dari row 5)               |
- *
- * LOGIKA FILTER WINDOW (sama seperti TYC):
- *   FIRM     → sebulan sebelumnya + bulan berjalan
- *   FORECAST → bulan berjalan + 4 bulan ke depan
+ * Catatan:
+ * - Kolom E selalu dilewati.
+ * - Kolom TOTAL FORECAST bukan order detail dan menghentikan scan.
+ * - Kolom tanpa label mewarisi label/type dari kolom sebelumnya.
  */
 class SAIMapper implements SRMapperInterface
 {
     // Row indices (0-based dari array $sheet)
     private const SEND_DATE_ROW      = 0;  // Row 1  Excel
-    private const FIRM_FORECAST_ROW  = 3;  // Row 4  Excel — label FIRM/FORECAST
+    private const FIRM_FORECAST_ROW  = 3;  // Row 4  Excel - label FIRM/FORECAST
     private const SHIP_BY_ROW        = 4;  // Row 5  Excel
-    private const PO_ROW             = 5;  // Row 6  Excel — PO# utama
-    private const PO_EXTRA_A_ROW     = 6;  // Row 7  Excel — PO# tambahan A
-    private const PO_EXTRA_B_ROW     = 7;  // Row 8  Excel — PO# tambahan B
-    private const ETD_JAI_ROW        = 8;  // Row 9  Excel — ETD dari JAI
-    private const ETA_SAI_ROW        = 9;  // Row 10 Excel — ETA tiba SAI
-    private const HEADER_ROW         = 10; // Row 11 Excel — No./PART NUMBER/BUPPIN/QTY
-    private const DATA_START_ROW     = 12; // Row 13 Excel — baris data pertama
+    private const PO_ROW             = 5;  // Row 6  Excel - PO# utama
+    private const PO_EXTRA_A_ROW     = 6;  // Row 7  Excel - PO# tambahan A
+    private const PO_EXTRA_B_ROW     = 7;  // Row 8  Excel - PO# tambahan B
+    private const ETD_JAI_ROW        = 8;  // Row 9  Excel - ETD dari JAI
+    private const ETA_SAI_ROW        = 9;  // Row 10 Excel - ETA tiba SAI
+    private const HEADER_ROW         = 10; // Row 11 Excel - No./ASSY NUMBER/BUPPIN/QTY
+    private const DATA_START_ROW     = 12; // Row 13 Excel - baris data pertama
 
     // Kolom indices (0-based)
     private const COL_NO         = 0; // A
-    private const COL_PART       = 1; // B — PART NUMBER
+    private const COL_PART       = 1; // B - ASSY NUMBER
     private const COL_BUPPIN     = 2; // C
     private const COL_LAST_CUM   = 3; // D
-    private const COL_HIDDEN_E   = 4; // E — selalu hidden di SAI
-    private const COL_DATA_START = 5; // F — kolom QTY pertama (visible)
+    private const COL_HIDDEN_E   = 4; // E - selalu hidden di SAI
+    private const COL_DATA_START = 5; // F - kolom QTY pertama (visible)
 
-    // Kata yang menandakan baris summary → di-skip
+    // Kata yang menandakan baris summary untuk dilewati.
     private const SKIP_PART_WORDS = ['total', 'subtotal', 'grand total', 'balance'];
 
-    // Kolom row-4 yang menandakan kolom TOTAL (bukan order per-PO) → hentikan scan
+    // Kolom row-4 yang menandakan TOTAL summary dan menghentikan scan.
     private const TOTAL_COL_PATTERN = '/^TOTAL\s+FORECAST/i';
 
     public function map(array $sheet, ?Carbon $referenceDate = null, array $options = []): array
@@ -105,7 +58,7 @@ class SAIMapper implements SRMapperInterface
 
         Log::info('=== MAPPING SAI START ===');
 
-        // ── 1. Deteksi baris-baris kunci ─────────────────────────────────────
+        // 1. Deteksi baris-baris kunci.
 
         [$firmForecastRow, $firmForecastIdx] = $this->detectFirmForecastRow($sheet)
             ?? [$sheet[self::FIRM_FORECAST_ROW] ?? [], self::FIRM_FORECAST_ROW];
@@ -129,7 +82,7 @@ class SAIMapper implements SRMapperInterface
         // ── 2. Reference date & window ───────────────────────────────────────
 
         $sheetReference = $referenceDate
-            ?? $this->guessReferenceDate($sheet, $poIdx)
+            ?? $this->guessReferenceDate($sheet, $poIdx, $firmForecastRow, $etaRow)
             ?? Carbon::now();
 
         $ref           = $sheetReference;
@@ -199,12 +152,12 @@ class SAIMapper implements SRMapperInterface
                 continue;
             }
 
-            // ── Validasi part number ──────────────────────────────────────────
-            $partNumber = trim((string)($row[self::COL_PART] ?? ''));
-            if ($partNumber === '') {
+            // ── Validasi assy number ──────────────────────────────────────────
+            $assyNumber = trim((string)($row[self::COL_PART] ?? ''));
+            if ($assyNumber === '') {
                 continue;
             }
-            if (in_array(strtolower($partNumber), $skipWords, true)) {
+            if (in_array(strtolower($assyNumber), $skipWords, true)) {
                 continue;
             }
 
@@ -233,14 +186,14 @@ class SAIMapper implements SRMapperInterface
                     $qty = (int) $qty;
                 }
 
-                if ($qty < 0) {
+                if ($qty <= 0) {
                     continue;
                 }
 
                 $result[] = [
                     'customer'      => 'SAI',
                     'source_file'   => null,
-                    'part_number'   => $partNumber,
+                    'assy_number'   => $assyNumber,
                     'qty'           => $qty,
                     'delivery_date' => $info['eta']->toDateString(),
                     'eta'           => $info['eta']->toDateString(),
@@ -353,7 +306,7 @@ class SAIMapper implements SRMapperInterface
 
     /**
      * Deteksi baris header (row 11).
-     * Ciri: mengandung kata "PART NUMBER" atau "PART NO".
+     * Ciri: mengandung kata "ASSY NUMBER", "PART NUMBER", atau "PART NO".
      */
     private function detectHeaderRow(array $sheet, int $start = 0, int $maxRows = 10): ?array
     {
@@ -365,7 +318,7 @@ class SAIMapper implements SRMapperInterface
             }
             foreach ($row as $cell) {
                 $text = strtoupper(trim((string) $cell));
-                if ($text === 'PART NUMBER' || $text === 'PART NO' || $text === 'PART NO.') {
+                if (in_array($text, ['ASSY NUMBER', 'PART NUMBER', 'PART NO', 'PART NO.'], true)) {
                     return [$row, $idx];
                 }
             }
@@ -593,11 +546,14 @@ class SAIMapper implements SRMapperInterface
      *  2. Jika tidak ada → ambil tanggal pertama dari ETD row.
      *  3. Jika tidak ada → pakai Carbon::now().
      */
-    private function guessReferenceDate(array $sheet, int $poRowIdx): ?Carbon
+    private function guessReferenceDate(array $sheet, int $poRowIdx, array $firmForecastRow = [], array $etaRow = []): ?Carbon
     {
+        $firmMonth = $this->latestFirmMonth($firmForecastRow, $etaRow);
+        if ($firmMonth !== null) {
+            return $firmMonth;
+        }
+
         $etdRow = $sheet[$poRowIdx + 3] ?? []; // row ETD = po+3 biasanya
-        $today  = Carbon::today();
-        $future = [];
         $all    = [];
 
         foreach ($etdRow as $val) {
@@ -606,14 +562,6 @@ class SAIMapper implements SRMapperInterface
                 continue;
             }
             $all[] = $date;
-            if ($date->gte($today)) {
-                $future[] = $date;
-            }
-        }
-
-        if (!empty($future)) {
-            usort($future, fn($a, $b) => $a->timestamp <=> $b->timestamp);
-            return $future[0];
         }
 
         if (!empty($all)) {
@@ -622,6 +570,41 @@ class SAIMapper implements SRMapperInterface
         }
 
         return null;
+    }
+
+    private function latestFirmMonth(array $firmForecastRow, array $etaRow): ?Carbon
+    {
+        $currentType = null;
+        $latestFirmDate = null;
+
+        foreach ($firmForecastRow as $index => $label) {
+            $text = strtoupper(trim((string) $label));
+
+            if ($text !== '' && preg_match(self::TOTAL_COL_PATTERN, $text)) {
+                break;
+            }
+
+            if (str_contains($text, 'FORECAST')) {
+                $currentType = 'FORECAST';
+            } elseif (str_contains($text, 'FIRM')) {
+                $currentType = 'FIRM';
+            }
+
+            if ($currentType !== 'FIRM') {
+                continue;
+            }
+
+            $date = $this->parseDateValue($etaRow[$index] ?? null);
+            if ($date === null) {
+                continue;
+            }
+
+            if ($latestFirmDate === null || $date->gt($latestFirmDate)) {
+                $latestFirmDate = $date;
+            }
+        }
+
+        return $latestFirmDate?->copy()->startOfMonth();
     }
 
     /**

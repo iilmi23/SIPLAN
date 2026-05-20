@@ -13,11 +13,21 @@ import {
 export default function SPPIndex({ srList = [], customers = [], filters = {} }) {
     const [customer, setCustomer] = useState(filters.customer || "");
     const [search, setSearch] = useState(filters.search || "");
+    const [selectedIds, setSelectedIds] = useState([]);
 
     const rows = Array.isArray(srList) ? srList : [];
     const hasFilters = Boolean(customer || search);
     const query = useMemo(() => buildQuery({ customer, search }), [customer, search]);
     const totalQty = useMemo(() => rows.reduce((sum, row) => sum + toNumber(row.total_qty), 0), [rows]);
+    const selectedRows = useMemo(
+        () => rows.filter((row) => selectedIds.includes(Number(row.upload_batch_id))),
+        [rows, selectedIds]
+    );
+    const selectedCustomers = useMemo(
+        () => Array.from(new Set(selectedRows.map((row) => row.customer).filter(Boolean))),
+        [selectedRows]
+    );
+    const canPreviewCombined = selectedRows.length >= 2 && selectedCustomers.length === 1;
 
     const applyFilter = (event) => {
         event?.preventDefault();
@@ -31,10 +41,30 @@ export default function SPPIndex({ srList = [], customers = [], filters = {} }) 
     const resetFilter = () => {
         setCustomer("");
         setSearch("");
+        setSelectedIds([]);
         router.get(route("spp"), {}, {
             preserveState: true,
             preserveScroll: true,
             replace: true,
+        });
+    };
+
+    const toggleSelected = (id) => {
+        const numericId = Number(id);
+        if (!numericId) return;
+
+        setSelectedIds((current) => (
+            current.includes(numericId)
+                ? current.filter((item) => item !== numericId)
+                : [...current, numericId]
+        ));
+    };
+
+    const previewCombined = () => {
+        if (!canPreviewCombined) return;
+
+        router.get(route("spp.previewCombined"), {
+            batches: selectedIds,
         });
     };
 
@@ -55,12 +85,23 @@ export default function SPPIndex({ srList = [], customers = [], filters = {} }) 
                             <div>
                                 <h1 className="text-2xl font-semibold tracking-tight text-gray-900">SPP Upload List</h1>
                                 <p className="mt-1 text-sm text-gray-500">
-                                    Pilih SR upload untuk membuka preview SPP, lalu adjust angka sebelum dijadikan versi fixed.
+                                    Pilih satu SR untuk SPP biasa, atau centang beberapa SR customer yang sama untuk combined SPP.
                                 </p>
                             </div>
-                            <div className="grid grid-cols-2 gap-3 text-sm">
-                                <MiniStat label="Uploads" value={formatNumber(rows.length)} />
-                                <MiniStat label="Qty" value={formatNumber(totalQty)} />
+                            <div className="flex flex-wrap items-center justify-end gap-3">
+                                <div className="grid grid-cols-2 gap-3 text-sm">
+                                    <MiniStat label="Uploads" value={formatNumber(rows.length)} />
+                                    <MiniStat label="Qty" value={formatNumber(totalQty)} />
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={previewCombined}
+                                    disabled={!canPreviewCombined}
+                                    className="inline-flex h-10 items-center justify-center rounded-lg bg-[#0f3320] px-4 text-sm font-semibold text-white hover:bg-[#174b2e] disabled:cursor-not-allowed disabled:opacity-50"
+                                    title={selectedRows.length < 2 ? "Pilih minimal dua SR upload" : selectedCustomers.length > 1 ? "Combined SPP harus dari customer yang sama" : "Preview Combined SPP"}
+                                >
+                                    Preview Combined ({selectedRows.length})
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -124,6 +165,7 @@ export default function SPPIndex({ srList = [], customers = [], filters = {} }) 
                     <div className="overflow-x-auto">
                         <table className="w-full min-w-[1180px] table-fixed">
                             <colgroup>
+                                <col className="w-[56px]" />
                                 <col className="w-[72px]" />
                                 <col className="w-[130px]" />
                                 <col className="w-[130px]" />
@@ -136,12 +178,13 @@ export default function SPPIndex({ srList = [], customers = [], filters = {} }) 
                             </colgroup>
                             <thead>
                                 <tr className="border-b border-gray-200 bg-gray-100/80">
+                                    <TableHeader>Select</TableHeader>
                                     <TableHeader>#</TableHeader>
                                     <TableHeader>Customer</TableHeader>
                                     <TableHeader>Port</TableHeader>
                                     <TableHeader>Source File</TableHeader>
                                     <TableHeader>Sheet</TableHeader>
-                                    <TableHeader align="right">Parts</TableHeader>
+                                    <TableHeader align="right">Assy Numbers</TableHeader>
                                     <TableHeader align="right">Qty</TableHeader>
                                     <TableHeader>ETA Range</TableHeader>
                                     <TableHeader>Action</TableHeader>
@@ -150,6 +193,16 @@ export default function SPPIndex({ srList = [], customers = [], filters = {} }) 
                             <tbody className="divide-y divide-gray-100">
                                 {rows.length > 0 ? rows.map((sr, index) => (
                                     <tr key={`${sr.upload_batch}-${sr.id}`} className="transition-colors hover:bg-gray-50/80">
+                                        <td className="border-r border-gray-100 px-5 py-4 text-center">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedIds.includes(Number(sr.upload_batch_id))}
+                                                onChange={() => toggleSelected(sr.upload_batch_id)}
+                                                disabled={!sr.upload_batch_id}
+                                                className="h-4 w-4 rounded border-gray-300 text-[#1D6F42] focus:ring-[#1D6F42]"
+                                                aria-label={`Select ${sr.source_file || "SR upload"}`}
+                                            />
+                                        </td>
                                         <td className="border-r border-gray-100 px-5 py-4 text-sm font-medium tabular-nums text-gray-500">
                                             {(index + 1).toString().padStart(2, "0")}
                                         </td>
@@ -164,7 +217,7 @@ export default function SPPIndex({ srList = [], customers = [], filters = {} }) 
                                             <p className="mt-0.5 truncate text-xs text-gray-400">Batch: {sr.upload_batch || "-"}</p>
                                         </td>
                                         <td className="border-r border-gray-100 px-5 py-4 text-sm text-gray-600">{sr.sheet_name || "-"}</td>
-                                        <td className="border-r border-gray-100 px-5 py-4 text-right font-mono text-sm text-gray-700">{formatNumber(sr.unique_parts)}</td>
+                                        <td className="border-r border-gray-100 px-5 py-4 text-right font-mono text-sm text-gray-700">{formatNumber(sr.unique_assy_numbers)}</td>
                                         <td className="border-r border-gray-100 px-5 py-4 text-right font-mono text-sm text-gray-700">{formatNumber(sr.total_qty)}</td>
                                         <td className="border-r border-gray-100 px-5 py-4 text-sm text-gray-600">{formatDateRange(sr.earliest_eta, sr.latest_eta)}</td>
                                         <td className="px-5 py-4">
@@ -179,7 +232,7 @@ export default function SPPIndex({ srList = [], customers = [], filters = {} }) 
                                     </tr>
                                 )) : (
                                     <tr>
-                                        <td colSpan={9} className="py-16 text-center">
+                                        <td colSpan={10} className="py-16 text-center">
                                             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50">
                                                 <TableCellsIcon className="h-8 w-8 text-gray-400" />
                                             </div>

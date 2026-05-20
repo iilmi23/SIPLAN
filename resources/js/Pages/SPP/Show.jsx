@@ -1,4 +1,4 @@
-﻿import AdminLayout from "@/Layouts/AdminLayout";
+import AdminLayout from "@/Layouts/AdminLayout";
 import { router } from "@inertiajs/react";
 import { useMemo, useState } from "react";
 
@@ -109,8 +109,8 @@ export default function SPPShow({ customers, srBatches = [], filters, period, re
                                 <p className="mt-2 text-3xl font-semibold text-green-950">{summary.total_qty}</p>
                             </div>
                             <div className="rounded-2xl border border-gray-200 bg-green-50 p-4">
-                                <p className="text-sm font-medium text-green-900">Unique Parts</p>
-                                <p className="mt-2 text-3xl font-semibold text-green-950">{summary.unique_parts}</p>
+                                <p className="text-sm font-medium text-green-900">Unique Assy Numbers</p>
+                                <p className="mt-2 text-3xl font-semibold text-green-950">{summary.unique_assy_numbers}</p>
                             </div>
                         </div>
 
@@ -120,23 +120,23 @@ export default function SPPShow({ customers, srBatches = [], filters, period, re
                                     <tr>
                                         <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">No</th>
                                         <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Customer</th>
-                                        <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Part Number</th>
-                                        <th className="p-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">ETA</th>
+                                        <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Assy Number</th>
+                                        <th className="p-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">{summary.source === "spp" ? "Period" : "ETA"}</th>
                                         <th className="p-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Qty</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {records.length === 0 ? (
                                         <tr>
-                                            <td colSpan="6" className="p-6 text-center text-sm text-gray-500">No records found for this period.</td>
+                                            <td colSpan="5" className="p-6 text-center text-sm text-gray-500">No records found for this period.</td>
                                         </tr>
                                     ) : (
                                         records.map((record, index) => (
                                             <tr key={record.id ?? index} className="border-t border-gray-100">
                                                 <td className="p-3 text-gray-600">{index + 1}</td>
                                                 <td className="p-3 text-gray-900">{record.customer}</td>
-                                                <td className="p-3 text-gray-900">{record.part_number}</td>
-                                                <td className="p-3 text-right text-gray-900">{record.eta}</td>
+                                                <td className="p-3 text-gray-900">{record.assy_number}</td>
+                                                <td className="p-3 text-right text-gray-900">{summary.source === "spp" ? record.period : record.eta}</td>
                                                 <td className="p-3 text-right text-gray-900">{record.total_qty ?? record.qty}</td>
                                             </tr>
                                         ))

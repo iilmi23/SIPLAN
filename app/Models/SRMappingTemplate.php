@@ -15,7 +15,7 @@ class SRMappingTemplate extends Model
         'sheet_index',
         'header_row',
         'data_start_row',
-        'part_number_column',
+        'assy_number_column',
         'qty_column',
         'qty_start_column',
         'qty_end_column',

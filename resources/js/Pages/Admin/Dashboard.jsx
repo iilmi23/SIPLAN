@@ -1,307 +1,305 @@
 import AdminLayout from '@/Layouts/AdminLayout';
-import { FaUsers, FaAnchor, FaCheckCircle, FaShip, FaBolt, FaPlus, FaArrowRight, FaChartLine } from 'react-icons/fa';
 import { Link, usePage } from '@inertiajs/react';
-
-// ─── Constants ────────────────────────────────────────────────────────────────
+import { useTheme } from '@/contexts/ThemeContext';
+import { FaArrowDown, FaArrowRight, FaArrowUp, FaChartLine, FaCheckCircle, FaCogs, FaExclamationTriangle, FaShip, FaUsers } from 'react-icons/fa';
+import {
+    CartesianGrid,
+    Legend,
+    Line,
+    LineChart,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis,
+    YAxis,
+} from 'recharts';
 
 const ROLE_LABELS = {
     admin: 'Administrator',
     ppc: 'PPC',
 };
 
+const CHART_COLORS = ['#1D6F42', '#2563eb', '#dc2626', '#7c3aed', '#ea580c', '#0891b2', '#4d7c0f', '#be123c'];
+
 const formatNumber = (value) => Number(value || 0).toLocaleString();
 
 const formatSigned = (value) => {
     const number = Number(value || 0);
-    return `${number > 0 ? '+' : ''}${number.toLocaleString()}`;
+    const formatted = Math.abs(number).toLocaleString();
+
+    if (number > 0) return `+${formatted}`;
+    if (number < 0) return `-${formatted}`;
+    return '0';
 };
 
-// ─── Stat Card ────────────────────────────────────────────────────────────────
+const statusClass = (status) => ({
+    normal: 'border-emerald-100 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300',
+    moderate: 'border-amber-100 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300',
+    critical: 'border-rose-100 bg-rose-50 text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300',
+}[status] || 'border-gray-100 bg-gray-50 text-gray-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300');
 
 const StatCard = ({ stat, index }) => (
     <Link
         href={stat.link}
-        className="group relative bg-white rounded-2xl overflow-hidden border border-gray-100 hover:border-transparent hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+        className="group relative overflow-hidden rounded-2xl border border-gray-100 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-transparent hover:shadow-xl dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700"
         style={{ animationDelay: `${index * 80}ms` }}
     >
-        {/* Gradient top accent */}
         <div
-            className="absolute top-0 left-0 right-0 h-1 opacity-80"
+            className="absolute left-0 right-0 top-0 h-1 opacity-80"
+            style={{ background: stat.gradient }}
+        />
+        <div
+            className="absolute -right-10 -top-10 h-32 w-32 rounded-full opacity-[0.06] transition-opacity duration-300 group-hover:opacity-[0.12]"
             style={{ background: stat.gradient }}
         />
 
-        {/* Subtle bg glow */}
-        <div
-            className="absolute -top-10 -right-10 w-32 h-32 rounded-full opacity-[0.06] transition-opacity duration-300 group-hover:opacity-[0.12]"
-            style={{ background: stat.gradient }}
-        />
-
-        <div className="p-5 relative">
-            {/* Icon */}
+        <div className="relative p-5">
             <div
-                className="inline-flex items-center justify-center w-10 h-10 rounded-xl mb-4 text-white text-sm"
+                className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl text-sm text-white"
                 style={{ background: stat.gradient }}
             >
                 {stat.icon}
             </div>
 
-            {/* Value */}
             <div className="mb-1">
-                <span className="text-3xl font-bold text-gray-900 tracking-tight">
-                    {stat.value.toLocaleString()}
+                <span className="text-3xl font-bold tracking-tight text-gray-900 dark:text-slate-100">
+                    {Number(stat.value || 0).toLocaleString()}
                 </span>
             </div>
 
-            {/* Title */}
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">
+            <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-slate-500">
                 {stat.title}
             </p>
 
-            {/* Arrow */}
-            <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-x-1 group-hover:translate-x-0">
-                <FaArrowRight className="text-gray-300 text-xs" />
+            <div className="absolute bottom-4 right-4 translate-x-1 opacity-0 transition-all duration-200 group-hover:translate-x-0 group-hover:opacity-100">
+                <FaArrowRight className="text-xs text-gray-300 dark:text-slate-600" />
             </div>
         </div>
     </Link>
 );
 
-// ─── Section Card Shell ───────────────────────────────────────────────────────
-
-const SectionCard = ({ title, subtitle, action, children }) => (
-    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-        <div className="px-5 py-4 flex items-center justify-between border-b border-gray-50">
-            <div>
-                <h2 className="text-sm font-bold text-gray-800 tracking-tight">{title}</h2>
-                <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>
-            </div>
-            {action && (
-                <Link
-                    href={action.href}
-                    className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 transition-colors"
-                >
-                    {action.label}
-                    <FaArrowRight className="text-[10px]" />
-                </Link>
-            )}
-        </div>
-        <div>{children}</div>
-    </div>
-);
-
-// ─── List Items ───────────────────────────────────────────────────────────────
-
-const CustomerItem = ({ customer }) => (
-    <div className="group px-5 py-3.5 hover:bg-gray-50/80 transition-colors flex items-center justify-between">
-        <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-400 to-rose-400 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                {customer.name?.charAt(0)?.toUpperCase() || '?'}
-            </div>
-            <div>
-                <p className="text-sm font-semibold text-gray-800">{customer.name}</p>
-                <p className="text-xs text-gray-400">
-                    {customer.code || 'No code'} · {new Date(customer.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                </p>
-            </div>
-        </div>
-        <Link
-            href={`/customers/${customer.id}/ports`}
-            className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 opacity-0 group-hover:opacity-100 transition-all"
-        >
-            Ports →
-        </Link>
-    </div>
-);
-
-const SRItem = ({ sr }) => (
-    <div className="group px-5 py-3.5 hover:bg-gray-50/80 transition-colors flex items-center justify-between">
-        <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white flex-shrink-0">
-                <FaShip className="text-[10px]" />
-            </div>
-            <div>
-                <p className="text-sm font-semibold text-gray-800 truncate max-w-[180px]">
-                    {sr.source_file || `SR-${sr.id}`}
-                </p>
-                <p className="text-xs text-gray-400">
-                    {new Date(sr.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                </p>
-            </div>
-        </div>
-        <Link
-            href={`/summary/${sr.id}`}
-            className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 opacity-0 group-hover:opacity-100 transition-all"
-        >
-            Detail →
-        </Link>
-    </div>
-);
-
-const EmptyState = ({ icon: Icon, message }) => (
-    <div className="py-10 text-center">
-        <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gray-100 mb-3">
-            <Icon className="text-gray-300 text-lg" />
-        </div>
-        <p className="text-xs text-gray-400">{message}</p>
-    </div>
-);
-
-// ─── Quick Action ─────────────────────────────────────────────────────────────
-
-const QuickAction = ({ href, icon: Icon, label, gradient }) => (
-    <Link
-        href={href}
-        className="group flex flex-col items-center gap-2.5 p-4 rounded-xl bg-gray-50 hover:bg-white border border-transparent hover:border-gray-200 hover:shadow-md transition-all duration-200"
-    >
-        <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm transition-transform duration-200 group-hover:scale-110"
-            style={{ background: gradient }}
-        >
-            <Icon />
-        </div>
-        <span className="text-xs font-semibold text-gray-600 group-hover:text-gray-900 transition-colors text-center leading-tight">
-            {label}
-        </span>
-    </Link>
-);
-
-// ─── Greeting Banner ──────────────────────────────────────────────────────────
-
-const VarianceMetric = ({ label, value, tone }) => {
-    const toneClass = {
-        up: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-        down: 'bg-rose-50 text-rose-700 border-rose-100',
-        flat: 'bg-gray-50 text-gray-700 border-gray-100',
-    }[tone] || 'bg-gray-50 text-gray-700 border-gray-100';
+const VarianceKpi = ({ label, value, tone, icon: Icon }) => {
+    const classes = {
+        neutral: 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200',
+        up: 'border-emerald-100 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300',
+        down: 'border-rose-100 bg-rose-50 text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300',
+        critical: 'border-amber-100 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300',
+    }[tone] || 'border-slate-200 bg-slate-50 text-slate-700';
 
     return (
-        <div className={`rounded-xl border px-4 py-3 ${toneClass}`}>
-            <p className="text-[11px] font-semibold uppercase tracking-widest opacity-70">{label}</p>
-            <p className="mt-1 text-xl font-bold tracking-tight">{value}</p>
+        <div className={`rounded-lg border px-4 py-3 ${classes}`}>
+            <div className="flex items-center justify-between gap-3">
+                <p className="text-[11px] font-bold uppercase tracking-wide opacity-75">{label}</p>
+                <Icon className="h-4 w-4 shrink-0" />
+            </div>
+            <p className="mt-2 text-2xl font-bold text-gray-950 dark:text-slate-50">{formatNumber(value)}</p>
         </div>
     );
 };
 
-const VarianceChart = ({ data }) => {
-    const summary = data?.summary || {};
-    const customerRows = data?.by_customer || [];
-    const topParts = data?.top_parts || [];
-    const maxAbs = Math.max(...customerRows.map((row) => Math.abs(Number(row.variance_qty || 0))), 1);
-    const totalDelta = Number(summary.variance_qty || 0);
+const Section = ({ title, action, children }) => (
+    <section className="rounded-lg border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 dark:border-slate-800">
+            <h2 className="text-sm font-bold text-gray-900 dark:text-slate-100">{title}</h2>
+            {action}
+        </div>
+        <div className="p-4">{children}</div>
+    </section>
+);
+
+const VarianceTrendChart = ({ trend }) => {
+    const customers = trend?.customers || [];
+    const points = trend?.points || [];
+    const { isDark } = useTheme();
+    const axisColor = isDark ? '#94a3b8' : '#6b7280';
+    const gridColor = isDark ? '#334155' : '#e5e7eb';
+
+    if (!customers.length || !points.length) {
+        return <EmptyState message="Need at least two completed SR batches to show variance trend" />;
+    }
 
     return (
-        <SectionCard
-            title="Variance Overview"
-            subtitle="Latest completed SR batch compared with previous batch"
-            action={{ href: '/variance', label: 'Open variance' }}
-        >
-            <div className="p-5">
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-                    <VarianceMetric label="Delta Qty" value={formatSigned(totalDelta)} tone={totalDelta < 0 ? 'down' : totalDelta > 0 ? 'up' : 'flat'} />
-                    <VarianceMetric label="Changed Parts" value={formatNumber(summary.changed_parts)} tone="flat" />
-                    <VarianceMetric label="Increase" value={formatNumber(summary.increase_count)} tone="up" />
-                    <VarianceMetric label="Decrease" value={formatNumber(summary.decrease_count)} tone="down" />
-                </div>
+        <div className="h-[320px]">
+            <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={points} margin={{ top: 12, right: 20, left: 0, bottom: 8 }}>
+                    <CartesianGrid stroke={gridColor} strokeDasharray="3 3" />
+                    <XAxis dataKey="period" tick={{ fontSize: 11, fill: axisColor }} axisLine={{ stroke: gridColor }} tickLine={{ stroke: gridColor }} />
+                    <YAxis tick={{ fontSize: 11, fill: axisColor }} tickFormatter={formatSigned} width={72} axisLine={{ stroke: gridColor }} tickLine={{ stroke: gridColor }} />
+                    <Tooltip
+                        formatter={(value) => [formatSigned(value), 'Variance']}
+                        labelFormatter={(label, rows) => rows?.[0]?.payload?.label || label}
+                        contentStyle={{
+                            backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                            borderColor: isDark ? '#334155' : '#e5e7eb',
+                            color: isDark ? '#e2e8f0' : '#111827',
+                        }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 12, color: axisColor }} />
+                    {customers.map((customer, index) => (
+                        <Line
+                            key={customer}
+                            type="monotone"
+                            dataKey={customer}
+                            stroke={CHART_COLORS[index % CHART_COLORS.length]}
+                            strokeWidth={2.5}
+                            dot={{ r: 3 }}
+                            activeDot={{ r: 5 }}
+                            connectNulls
+                        />
+                    ))}
+                </LineChart>
+            </ResponsiveContainer>
+        </div>
+    );
+};
 
-                {customerRows.length > 0 ? (
-                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-                        <div className="xl:col-span-2">
-                            <div className="mb-3 flex items-center justify-between">
-                                <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">By Customer</p>
-                                <div className="flex items-center gap-3 text-[11px] text-gray-400">
-                                    <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-emerald-500" />Up</span>
-                                    <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-rose-500" />Down</span>
-                                </div>
-                            </div>
-                            <div className="space-y-3">
-                                {customerRows.map((row) => {
-                                    const delta = Number(row.variance_qty || 0);
-                                    const width = `${Math.max(6, (Math.abs(delta) / maxAbs) * 100)}%`;
-                                    const isUp = delta >= 0;
+const TopChangesTable = ({ rows }) => {
+    if (!rows?.length) {
+        return <EmptyState message="No variance changes in the latest completed batches" />;
+    }
 
-                                    return (
-                                        <div key={row.customer} className="grid grid-cols-[72px_1fr_96px] items-center gap-3">
-                                            <div className="min-w-0">
-                                                <p className="truncate text-sm font-bold text-gray-800">{row.customer}</p>
-                                                <p className="truncate text-[11px] text-gray-400" title={row.current_file || ''}>{row.current_file || 'Latest batch'}</p>
-                                            </div>
-                                            <div className="relative h-8 overflow-hidden rounded-lg bg-gray-100">
-                                                <div className="absolute left-1/2 top-0 h-full w-px bg-gray-300" />
-                                                <div
-                                                    className={`absolute top-1/2 h-3 -translate-y-1/2 rounded-full ${isUp ? 'left-1/2 bg-emerald-500' : 'right-1/2 bg-rose-500'}`}
-                                                    style={{ width }}
-                                                />
-                                            </div>
-                                            <div className={`text-right text-sm font-bold ${isUp ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                {formatSigned(delta)}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
+    return (
+        <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-slate-800">
+            <table className="w-full min-w-[720px] text-sm">
+                <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500 dark:bg-slate-800 dark:text-slate-400">
+                    <tr>
+                        <th className="px-3 py-3 text-left">Assy Number</th>
+                        <th className="px-3 py-3 text-right">Previous Qty</th>
+                        <th className="px-3 py-3 text-right">Current Qty</th>
+                        <th className="px-3 py-3 text-right">Variance Qty</th>
+                        <th className="px-3 py-3 text-left">Status</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
+                    {rows.slice(0, 10).map((row, index) => {
+                        const delta = Number(row.variance_qty || 0);
 
-                        <div>
-                            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-400">Top Changes</p>
-                            <div className="divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-100">
-                                {topParts.length > 0 ? topParts.map((row) => {
-                                    const delta = Number(row.variance_qty || 0);
-                                    return (
-                                        <div key={`${row.customer}-${row.part_number}-${row.month}-${row.week}`} className="bg-white px-3 py-2.5">
-                                            <div className="flex items-center justify-between gap-3">
-                                                <p className="truncate text-xs font-bold text-gray-800" title={row.part_number}>{row.part_number}</p>
-                                                <span className={`text-xs font-bold ${delta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{formatSigned(delta)}</span>
-                                            </div>
-                                            <p className="mt-0.5 text-[11px] text-gray-400">{row.customer} - {row.month || '-'} - Week {row.week || '-'}</p>
-                                        </div>
-                                    );
-                                }) : (
-                                    <div className="px-3 py-8 text-center text-xs text-gray-400">No changed parts</div>
-                                )}
-                            </div>
-                        </div>
+                        return (
+                            <tr key={`${row.customer}-${row.assy_number}-${index}`} className="bg-white dark:bg-slate-900">
+                                <td className="px-3 py-3">
+                                    <p className="font-bold text-gray-900 dark:text-slate-100">{row.assy_number || '-'}</p>
+                                    <p className="text-xs text-gray-500 dark:text-slate-400">{row.customer || '-'}</p>
+                                </td>
+                                <td className="px-3 py-3 text-right font-mono text-gray-700 dark:text-slate-300">{formatNumber(row.previous_qty)}</td>
+                                <td className="px-3 py-3 text-right font-mono text-gray-700 dark:text-slate-300">{formatNumber(row.current_qty)}</td>
+                                <td className={`px-3 py-3 text-right font-mono font-bold ${delta >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-300'}`}>
+                                    {formatSigned(delta)}
+                                </td>
+                                <td className="px-3 py-3">
+                                    <span className={`inline-flex rounded-full border px-2 py-1 text-[11px] font-bold uppercase ${statusClass(row.classification)}`}>
+                                        {row.classification || 'normal'}
+                                    </span>
+                                </td>
+                            </tr>
+                        );
+                    })}
+                </tbody>
+            </table>
+        </div>
+    );
+};
+
+const RecentActivity = ({ rows }) => {
+    if (!rows?.length) {
+        return <EmptyState message="No recent variance activity" />;
+    }
+
+    return (
+        <div className="space-y-2">
+            {rows.slice(0, 8).map((row, index) => {
+                const delta = Number(row.variance_qty || 0);
+
+                return (
+                    <div key={`${row.assy_number}-${index}`} className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/70">
+                        <p className="min-w-0 truncate text-sm font-semibold text-gray-800 dark:text-slate-200">{row.message}</p>
+                        <span className={`font-mono text-sm font-bold ${delta >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-300'}`}>
+                            {formatSigned(delta)}
+                        </span>
                     </div>
-                ) : (
-                    <EmptyState icon={FaChartLine} message="Need at least two completed SR batches per customer to show variance" />
-                )}
-            </div>
-        </SectionCard>
+                );
+            })}
+        </div>
     );
 };
+
+const EmptyState = ({ message }) => (
+    <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm font-semibold text-gray-400 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-500">
+        {message}
+    </div>
+);
 
 const GreetingBanner = ({ name, role }) => {
     const hour = new Date().getHours();
     const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
 
     return (
-        <div className="relative bg-gradient-to-r from-[#0f5132] via-[#1D6F42] to-[#2d9b5e] rounded-2xl px-6 py-5 overflow-hidden mb-6">
-            <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5" />
-            <div className="absolute -bottom-8 right-16 w-24 h-24 rounded-full bg-white/5" />
-            <div className="absolute top-2 right-32 w-10 h-10 rounded-full bg-white/10" />
+        <div className="relative mb-6 overflow-hidden rounded-2xl bg-gradient-to-r from-[#0f5132] via-[#1D6F42] to-[#2d9b5e] px-6 py-5">
+            <div className="absolute -right-6 -top-6 h-32 w-32 rounded-full bg-white/5" />
+            <div className="absolute -bottom-8 right-16 h-24 w-24 rounded-full bg-white/5" />
+            <div className="absolute right-32 top-2 h-10 w-10 rounded-full bg-white/10" />
 
             <div className="relative flex items-center justify-between">
                 <div>
-                    <p className="text-emerald-200 text-xs font-medium tracking-wider uppercase mb-1">
+                    <p className="mb-1 text-xs font-medium uppercase tracking-wider text-emerald-200">
                         {greeting}
                     </p>
-                    <h1 className="text-white text-xl font-bold tracking-tight">
-                        {name || 'SIPLAN'} 👋
+                    <h1 className="text-xl font-bold tracking-tight text-white">
+                        {name || 'SIPLAN'}
                     </h1>
-                    <p className="text-emerald-100/80 text-sm mt-1 font-medium">
-                        Welcome to <span className="text-white font-bold">SIPLAN</span> Here's an overview of your data.
+                    <p className="mt-1 text-sm font-medium text-emerald-100/80">
+                        Welcome to <span className="font-bold text-white">SIPLAN</span>. Here's an overview of your data.
                     </p>
                 </div>
-                <div className="hidden sm:flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-xl px-4 py-2.5 border border-white/20">
-                    <FaChartLine className="text-emerald-200 text-sm" />
-                    <span className="text-white text-xs font-semibold">Overview</span>
+                <div className="hidden items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 backdrop-blur-sm sm:flex">
+                    <FaChartLine className="text-sm text-emerald-200" />
+                    <span className="text-xs font-semibold text-white">{role}</span>
                 </div>
             </div>
         </div>
     );
 };
 
-// ─── Main Dashboard ───────────────────────────────────────────────────────────
+const VarianceDashboard = ({ data }) => {
+    const kpis = data?.kpis || {};
 
-export default function Dashboard({ stats, recent_customers, recent_sr, recent_carlines, varianceChart, error }) {
+    return (
+        <div className="space-y-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h2 className="text-lg font-bold text-gray-950 dark:text-slate-50">Variance Monitoring</h2>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Latest completed SR batch compared with previous batch</p>
+                </div>
+                <a
+                    href="/variance/export"
+                    className="inline-flex h-10 items-center justify-center rounded-lg border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                    Export Excel
+                </a>
+            </div>
+
+            {/* <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <VarianceKpi label="Total Changed Assy" value={kpis.changed_assy_count} tone="neutral" icon={FaChartLine} />
+                <VarianceKpi label="Increase Count" value={kpis.increase_count} tone="up" icon={FaArrowUp} />
+                <VarianceKpi label="Decrease Count" value={kpis.decrease_count} tone="down" icon={FaArrowDown} />
+                <VarianceKpi label="Critical Count" value={kpis.critical_count} tone="critical" icon={FaExclamationTriangle} />
+            </div> */}
+
+            <Section title="Customer Variance Trend">
+                <VarianceTrendChart trend={data?.trend} />
+            </Section>
+
+            <div className="grid gap-5 xl:grid-cols-[1.4fr_0.8fr]">
+                {/* <Section title="Top Changes">
+                    <TopChangesTable rows={data?.top_changes || []} />
+                </Section>
+                <Section title="Recent Activity">
+                    <RecentActivity rows={data?.recent_activity || []} />
+                </Section> */}
+            </div>
+        </div>
+    );
+};
+
+export default function Dashboard({ stats, varianceDashboard, error }) {
     const { auth, flash } = usePage().props;
     const user = auth.user;
     const roleName = ROLE_LABELS[user?.role] ?? 'User';
@@ -315,21 +313,7 @@ export default function Dashboard({ stats, recent_customers, recent_sr, recent_c
             icon: <FaUsers />,
             gradient: 'linear-gradient(135deg, #f97316, #ef4444)',
             link: '/customers',
-        },
-        {
-            title: 'Ports',
-            value: stats?.total_ports || 0,
-            icon: <FaAnchor />,
-            gradient: 'linear-gradient(135deg, #3b82f6, #6366f1)',
-            link: '/ports',
-        },
-    ].filter(() => isAdmin).concat([
-        {
-            title: 'Shipping Releases',
-            value: stats?.total_sr || 0,
-            icon: <FaShip />,
-            gradient: 'linear-gradient(135deg, #10b981, #059669)',
-            link: '/sr/upload',
+            adminOnly: true,
         },
         {
             title: 'Carlines',
@@ -337,88 +321,43 @@ export default function Dashboard({ stats, recent_customers, recent_sr, recent_c
             icon: <FaCheckCircle />,
             gradient: 'linear-gradient(135deg, #8b5cf6, #a855f7)',
             link: '/carline',
+            adminOnly: true,
         },
-    ]);
-
-    const quickActions = [
-        ...(isAdmin ? [
-            { href: '/customers/create', icon: FaPlus,   label: 'Add Customer', gradient: 'linear-gradient(135deg, #f97316, #ef4444)' },
-            { href: '/ports',            icon: FaAnchor, label: 'Ports',        gradient: 'linear-gradient(135deg, #3b82f6, #6366f1)' },
-        ] : []),
-        { href: '/sr/upload', icon: FaBolt, label: 'Upload SR', gradient: 'linear-gradient(135deg, #10b981, #059669)' },
-    ];
+        {
+            title: 'Assy',
+            value: stats?.total_assy || 0,
+            icon: <FaCogs />,
+            gradient: 'linear-gradient(135deg, #3b82f6, #6366f1)',
+            link: '/assy',
+            adminOnly: true,
+        },
+        {
+            title: 'SR',
+            value: stats?.total_sr || 0,
+            icon: <FaShip />,
+            gradient: 'linear-gradient(135deg, #10b981, #059669)',
+            link: '/sr/upload',
+        },
+    ].filter((item) => !item.adminOnly || isAdmin);
 
     return (
         <AdminLayout title="Dashboard">
-            <div className="min-h-screen bg-[#f7f8fc] px-5 md:px-8 pt-4 pb-10">
-
-                {/* Error */}
+            <div className="min-h-screen bg-[#f6f8fb] px-5 pb-10 pt-4 transition-colors duration-300 dark:bg-slate-950 md:px-8">
                 {errorMessage && (
-                    <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
-                        <p className="text-sm text-red-600 font-medium">{errorMessage}</p>
+                    <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/60 dark:bg-red-950/40">
+                        <p className="text-sm font-medium text-red-600 dark:text-red-300">{errorMessage}</p>
                     </div>
                 )}
 
-                {/* Greeting Banner */}
                 <GreetingBanner name={user?.name} role={roleName} />
 
-                {/* Stats Grid */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                    {statsData.map((stat, i) => (
-                        <StatCard key={stat.title} stat={stat} index={i} />
+                <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+                    {statsData.map((stat, index) => (
+                        <StatCard key={stat.title} stat={stat} index={index} />
                     ))}
                 </div>
 
-                <div className="mb-6">
-                    <VarianceChart data={varianceChart} />
-                </div>
-
-                {/* Main Content — 2/3 + 1/3 layout */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-                    {isAdmin && (
-                        <div className="lg:col-span-2">
-                            <SectionCard
-                                title="Recent Customers"
-                                subtitle="Latest added customers"
-                                action={{ href: '/customers', label: 'View all' }}
-                            >
-                                <div className="divide-y divide-gray-50">
-                                    {recent_customers?.length > 0
-                                        ? recent_customers.map(c => <CustomerItem key={c.id} customer={c} />)
-                                        : <EmptyState icon={FaUsers} message="No customers yet" />
-                                    }
-                                </div>
-                            </SectionCard>
-                        </div>
-                    )}
-
-                    {/* Right col: Quick Actions + Recent SR */}
-                    <div className={`flex flex-col gap-5 ${isAdmin ? '' : 'lg:col-span-3'}`}>
-                        {/* Quick Actions */}
-                        <SectionCard title="Quick Actions" subtitle="Shortcuts to main features">
-                            <div className={`p-4 grid gap-3 ${isAdmin ? 'grid-cols-3' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'}`}>
-                                {quickActions.map(action => (
-                                    <QuickAction key={action.href} {...action} />
-                                ))}
-                            </div>
-                        </SectionCard>
-
-                        {/* Recent SR */}
-                        <SectionCard
-                            title="Recent SR"
-                            subtitle="Latest shipping releases"
-                            action={{ href: '/sr/upload', label: 'View all' }}
-                        >
-                            <div className="divide-y divide-gray-50">
-                                {recent_sr?.length > 0
-                                    ? recent_sr.slice(0, 4).map(sr => <SRItem key={sr.id} sr={sr} />)
-                                    : <EmptyState icon={FaShip} message="No SR data yet" />
-                                }
-                            </div>
-                        </SectionCard>
-                    </div>
-                </div>
-
+                <VarianceDashboard data={varianceDashboard || {}} />
             </div>
         </AdminLayout>
     );

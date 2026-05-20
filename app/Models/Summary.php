@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Variance\AnalyticsCacheService;
 use Illuminate\Database\Eloquent\Model;
 
 class Summary extends Model
@@ -17,7 +18,7 @@ class Summary extends Model
         'customer',
         'source_file',
         'sheet_name',
-        'part_number',
+        'assy_number',
         'model',
         'family',
         'order_type',
@@ -36,6 +37,12 @@ class Summary extends Model
         'line_count' => 'integer',
         'total_qty' => 'integer',
     ];
+
+    protected static function booted(): void
+    {
+        static::updated(fn () => app(AnalyticsCacheService::class)->invalidate());
+        static::deleted(fn () => app(AnalyticsCacheService::class)->invalidate());
+    }
 
     public function uploadBatch()
     {

@@ -2,429 +2,415 @@
 
 namespace App\Services\SR;
 
-use Illuminate\Support\Facades\Log;
-use App\Models\ProductionWeek;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-/**
- * YNAMapper — mapper untuk customer YNA (Yazaki North America)
- *
- * STRUKTUR FILE (sheet "Final SR"):
- *   File tidak berbentuk tabel biasa. Setiap part dikemas dalam BLOK 10 BARIS:
- *
- *   Blok offset dari baris PSA# (anchor):
- *     +0  F='PSA#'              → anchor penanda awal blok baru
- *     +1  F='YNA Part#'   H='YNA Part Description'  I=<part_number>
- *     +2  F='Customer Part#'
- *     +3  F='High Fab'    I='ETD Date'  J..=tanggal ETD per kolom
- *     +4  F='High Raw'    I='ETA Date'  J..=tanggal ETA per kolom
- *     +5  F='Car line'    I='Net'       J..=qty per kolom
- *     +6  F='Family'      I='Cum'
- *     +7  F='Cum Received'
- *     +8  F='Comments'
- *     +9  (blank separator)
- *
- *   Kolom data (J onward = index 9+):
- *     - Setiap kolom = satu minggu pengiriman
- *     - ETD dan Net SELALU ada; ETA sering kosong dan dibiarkan kosong
- *     - Tidak ada label FIRM/FORECAST → semua di-set 'FIRM'
- *
- * WINDOW FILTER:
- *   YNA mengambil semua tanggal ETD/ETA dari file,
- *   tanpa membatasi ke window FIRM/FORECAST.
- */
 class YNAMapper implements SRMapperInterface
 {
-    // Kolom data mulai dari index 9 (kolom J di Excel)
-    private const DATA_COL_START = 9;
+    private const DATA_COL_START = 9; // Excel column J
+    private const FALLBACK_SHEET_NAME = 'Final SR';
 
-    // Nama sheet yang dibaca
-    private const SHEET_NAME = 'Final SR';
+    private const COL_F = 5;
+    private const COL_G = 6;
+    private const COL_I = 8;
 
     public function map(
-        array   $sheet,
+        array $sheet,
         ?Carbon $referenceDate = null,
         ?string $filePath = null,
-        int     $sheetIndex = 0,
-        ?int    $customerId = null
+        int $sheetIndex = 0,
+        ?int $customerId = null
     ): array {
-        if (empty($sheet) || !is_array($sheet)) {
-            throw new \Exception("Sheet kosong atau tidak valid");
+        if (empty($sheet)) {
+            throw new \Exception('Sheet kosong atau tidak valid');
+        }
+
+        if ($filePath === null || !file_exists($filePath)) {
+            throw new \Exception(
+                'YNAMapper membutuhkan filePath untuk membaca nilai formula Excel secara langsung.'
+            );
         }
 
         Log::info('=== MAPPING YNA START ===');
 
-        // YNA harus dibaca dari file asli karena strukturnya vertical-block
-        // $sheet dari Excel::toArray() mengandung formula string, bukan nilai terhitung
-        // Kita pakai IOFactory untuk dapat nilai aktual
-        if ($filePath === null || !file_exists($filePath)) {
-            throw new \Exception(
-                "YNAMapper membutuhkan filePath untuk membaca file Excel secara langsung. " .
-                "Pastikan filePath diteruskan dari controller."
-            );
-        }
-
-        return $this->mapFromFile($filePath, $referenceDate, $customerId);
+        return $this->mapFromFile($filePath, $referenceDate, $customerId, $sheetIndex);
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // PRIVATE — Main mapping logic
-    // ─────────────────────────────────────────────────────────────────────
-
-    private function mapFromFile(string $filePath, ?Carbon $referenceDate, ?int $customerId): array
+    private function mapFromFile(string $filePath, ?Carbon $referenceDate, ?int $customerId, int $sheetIndex): array
     {
-        // Load spreadsheet dengan kalkulasi formula
         $spreadsheet = IOFactory::load($filePath);
+        $worksheet = $this->resolveWorksheet($spreadsheet, $sheetIndex);
+        $rows = $this->worksheetRows($worksheet);
+        $psaRows = $this->findPsaRows($rows);
 
-        // Cari sheet "Final SR"
-        $worksheet = null;
-        foreach ($spreadsheet->getWorksheetIterator() as $ws) {
-            if (strtolower(trim($ws->getTitle())) === strtolower(self::SHEET_NAME)) {
-                $worksheet = $ws;
-                break;
-            }
-        }
+        Log::info('Membaca sheet: ' . $worksheet->getTitle());
+        Log::info('Total rows dibaca: ' . count($rows));
+        Log::info('Reference: ' . ($referenceDate ?? Carbon::now())->toDateString() . ' | YNA mengambil semua kolom ETD/ETA');
+        Log::info('Total assy blocks ditemukan: ' . count($psaRows));
 
-        if ($worksheet === null) {
-            // Fallback: coba sheet pertama
-            $worksheet = $spreadsheet->getActiveSheet();
-            Log::warning("Sheet '" . self::SHEET_NAME . "' tidak ditemukan, menggunakan sheet aktif: " . $worksheet->getTitle());
-        }
-
-        Log::info("Membaca sheet: " . $worksheet->getTitle());
-
-        // Ambil semua baris sebagai array nilai
-        $allRows = [];
-        foreach ($worksheet->getRowIterator() as $row) {
-            $rowData = [];
-            foreach ($row->getCellIterator() as $cell) {
-                $rowData[] = $cell->getCalculatedValue();
-            }
-            $allRows[] = $rowData;
-        }
-
-        Log::info("Total rows dibaca: " . count($allRows));
-
-        // Tentukan reference date untuk log; YNA akan mengambil semua tanggal ETD/ETA dari file
-        $ref = $referenceDate ?? Carbon::now();
-        Log::info("Reference: {$ref->toDateString()} | YNA mapper mengambil semua kolom tanggal ETD/ETA tanpa window filter");
-
-        // Temukan semua baris anchor PSA#
-        $psaIndices = $this->findPsaRows($allRows);
-        Log::info("Total part blocks ditemukan: " . count($psaIndices));
-
-        if (empty($psaIndices)) {
+        if (empty($psaRows)) {
             throw new \Exception(
-                "Tidak dapat menemukan blok data di sheet '" . self::SHEET_NAME . "'. " .
-                "Pastikan file YNA yang diunggah adalah format yang benar (harus ada baris dengan label 'PSA#')."
+                "Tidak dapat menemukan blok data di sheet '{$worksheet->getTitle()}'. " .
+                "Pastikan format YNA benar dan ada baris berlabel 'PSA#'."
             );
         }
 
-        $result = [];
-        $processedParts  = 0;
-        $skippedParts    = 0;
-
-        foreach ($psaIndices as $psaIdx) {
-            try {
-                $records = $this->parseBlock($allRows, $psaIdx, $customerId);
-
-                if (!empty($records)) {
-                    $result        = array_merge($result, $records);
-                    $processedParts++;
-                } else {
-                    $skippedParts++;
-                    Log::debug("Block row " . ($psaIdx + 1) . " tidak punya data.");
-                }
-            } catch (\Throwable $e) {
-                Log::warning("Error parsing block di row " . ($psaIdx + 1) . ": " . $e->getMessage());
-                $skippedParts++;
-            }
-        }
-
-        Log::info("Processed blocks: {$processedParts} | Skipped: {$skippedParts} | Records: " . count($result));
-
-        if (empty($result)) {
-            throw new \Exception(
-                "Tidak ada data ETD/ETA yang valid di file YNA. " .
-                "Total blocks: " . count($psaIndices) . "."
-            );
-        }
-
-        return $result;
-    }
-
-    /**
-     * Parse satu blok part (10 baris mulai dari PSA# row).
-     *
-     * Struktur kolom pada +1 row:
-     *   col E (idx 4): 'YNA Part#'          — label penanda baris
-     *   col H (idx 7): 'YNA Part Description' — header kolom deskripsi
-     *   col I (idx 8): <actual_part_number>  — nilai yang kita ambil
-     *
-     * PERBAIKAN BUG: Sebelumnya validasi memeriksa descRow[7] === 'YNA Part Description',
-     * padahal col H bisa berisi deskripsi part yang bebas (bukan teks literal tersebut).
-     * Validasi yang benar adalah memeriksa label di col F (idx 5) = 'YNA Part#'.
-     *
-     * @param array  $allRows    Semua baris sheet
-     * @param int    $psaIdx     Index baris PSA# (0-based)
-     * @return array Records hasil parse blok
-     */
-    private function parseBlock(array $allRows, int $psaIdx, ?int $customerId = null): array
-    {
+        $referenceEtaByColumn = $this->extractReferenceEtaByColumn($rows, $psaRows);
         $records = [];
+        $processed = 0;
+        $skipped = 0;
 
-        // Validasi ketersediaan semua baris blok (minimal s/d +5)
-        if (!isset($allRows[$psaIdx + 5])) {
-            Log::debug("Block di row " . ($psaIdx + 1) . " tidak lengkap, skip.");
-            return [];
-        }
+        foreach ($psaRows as $psaRow) {
+            try {
+                $blockRecords = $this->parseBlock($rows, $psaRow, $customerId, $referenceEtaByColumn);
 
-        // ── +1: ambil part number ────────────────────────────────────────
-        $descRow    = $allRows[$psaIdx + 1];
-
-        // BUG FIX: validasi menggunakan col F (idx 5) = 'YNA Part#', BUKAN col H
-        // Col H (idx 7) berisi deskripsi bebas part, bukan teks literal 'YNA Part Description'
-        $partLabel  = $this->cleanString($descRow[5] ?? null); // col F = label baris
-        $partNumber = $this->cleanString($descRow[8] ?? null); // col I = nilai part number
-
-        if ($partLabel !== 'YNA Part#') {
-            Log::debug("Block row " . ($psaIdx + 1) . ": label +1 bukan 'YNA Part#', got '{$partLabel}', skip.");
-            return [];
-        }
-
-        if (empty($partNumber)) {
-            Log::debug("Block row " . ($psaIdx + 1) . ": part number kosong di col I, skip.");
-            return [];
-        }
-
-        // ── +3: ETD Date row ─────────────────────────────────────────────
-        $etdRow   = $allRows[$psaIdx + 3];
-        $etdLabel = $this->cleanString($etdRow[8] ?? null); // col I
-
-        // ── +4: ETA Date row ─────────────────────────────────────────────
-        $etaRow   = $allRows[$psaIdx + 4];
-        $etaLabel = $this->cleanString($etaRow[8] ?? null); // col I
-
-        // ── +5: Net (qty) row ─────────────────────────────────────────────
-        $netRow   = $allRows[$psaIdx + 5];
-        $netLabel = $this->cleanString($netRow[8] ?? null); // col I
-        $model    = $this->cleanString($netRow[6] ?? null) ?: null; // col G = Car line value
-
-        $familyRow   = $allRows[$psaIdx + 6] ?? [];
-        $familyLabel = $this->cleanString($familyRow[5] ?? null); // col F
-        $family      = $familyLabel === 'Family'
-            ? ($this->cleanString($familyRow[6] ?? null) ?: null)
-            : null;
-
-        // Validasi label ETD — wajib ada
-        if ($etdLabel !== 'ETD Date') {
-            Log::warning("Block row " . ($psaIdx + 1) . " part '{$partNumber}': ETD label tidak cocok, expected 'ETD Date' got '{$etdLabel}'");
-            return [];
-        }
-
-        // Validasi label Net — wajib ada
-        if ($netLabel !== 'Net') {
-            Log::warning("Block row " . ($psaIdx + 1) . " part '{$partNumber}': Net label tidak cocok, expected 'Net' got '{$netLabel}'");
-            return [];
-        }
-
-        // ETA label boleh tidak ada.
-        $hasEtaRow = ($etaLabel === 'ETA Date');
-
-        // ── Loop kolom data ───────────────────────────────────────────────
-        $maxCols = max(count($etdRow), count($etaRow), count($netRow));
-
-        for ($colIdx = self::DATA_COL_START; $colIdx < $maxCols; $colIdx++) {
-
-            // ETD — wajib ada, skip kolom jika kosong
-            $etdRaw = $etdRow[$colIdx] ?? null;
-            $etd    = $this->parseDateValue($etdRaw);
-            if ($etd === null) {
-                continue;
-            }
-
-            // ETA mengikuti file SR. Jika kosong, simpan null agar Summary sama seperti SR.
-            $etaRaw = $hasEtaRow ? ($etaRow[$colIdx] ?? null) : null;
-            $eta    = $this->parseDateValue($etaRaw);
-
-            // Qty — Parse dengan robust handling
-            $qtyRaw = $netRow[$colIdx] ?? null;
-            
-            // Jika nilai kosong/spasi → qty = 0 (tapi jangan skip, tetap buat record dengan qty 0)
-            if ($qtyRaw === null || $qtyRaw === '' || (is_string($qtyRaw) && trim($qtyRaw) === '')) {
-                $qty = 0;
-            } else {
-                // Jika formula string (=...), coba parse integer (walau bisa gagal)
-                // Jangan skip kolom, tapi catat di log bahwa qty potentially salah
-                if (is_string($qtyRaw) && str_starts_with(trim($qtyRaw), '=')) {
-                    $qty = $this->parseInteger($qtyRaw);
-                    if ($qty === null) {
-                        // Formula tidak bisa diparsing, default qty = 0
-                        $qty = 0;
-                        Log::warning("Block row " . ($psaIdx + 1) . " part '{$partNumber}' col " . ($colIdx + 1) . ": formula qty tidak terbaca, default 0. Raw: {$qtyRaw}");
-                    } else {
-                        Log::debug("Block row " . ($psaIdx + 1) . " part '{$partNumber}' col " . ($colIdx + 1) . ": formula qty terbaca: {$qty}");
-                    }
-                } else {
-                    $qty = $this->parseInteger($qtyRaw) ?? 0;
+                if ($blockRecords === []) {
+                    $skipped++;
+                    Log::debug('Block row ' . ($psaRow + 1) . ' tidak punya data.');
+                    continue;
                 }
-            }
 
-            // Skip nilai negatif (data tidak valid / adjustment row)
-            if ($qty < 0) {
-                Log::debug("Block row " . ($psaIdx + 1) . " col " . ($colIdx + 1) . ": qty negatif ({$qty}), skip.");
-                continue;
+                array_push($records, ...$blockRecords);
+                $processed++;
+            } catch (\Throwable $e) {
+                $skipped++;
+                Log::warning('Error parsing block di row ' . ($psaRow + 1) . ': ' . $e->getMessage());
             }
-
-            $weekInfo = $this->resolveWeekFromEtd($customerId, $etd);
-            $records[] = [
-                'customer'      => 'YNA',
-                'source_file'   => null,
-                'part_number'   => $partNumber,
-                'qty'           => $qty,
-                'delivery_date' => $eta?->toDateString(),
-                'eta'           => $eta?->toDateString(),
-                'etd'           => $etd->toDateString(),
-                'week'          => $weekInfo['week'] ?? null,
-                'month'         => $weekInfo['month'] ?? $etd->format('Y-m'),
-                'year'          => $weekInfo['year'] ?? $etd->year,
-                'order_type'    => 'FIRM',
-                'model'         => $model,
-                'family'        => $family,
-                'route'         => null,
-                'port'          => null,
-                'extra'         => json_encode([
-                    'row'          => $psaIdx + 1,
-                    'col'          => $colIdx + 1,
-                    'etd_raw'      => $etd->toDateString(),
-                    'eta_fallback' => false,
-                    'week_source'  => $weekInfo['source'] ?? 'manual',
-                    'model_source' => $model ? 'sr_car_line' : null,
-                    'family_source'=> $family ? 'sr_family' : null,
-                ]),
-            ];
         }
 
-        if (!empty($records)) {
-            Log::debug("Block row " . ($psaIdx + 1) . " part '{$partNumber}': " . count($records) . " kolom parsed.");
+        Log::info("Processed blocks: {$processed} | Skipped: {$skipped} | Records: " . count($records));
+
+        if (empty($records)) {
+            throw new \Exception('Tidak ada data ETD/ETA yang valid di file YNA. Total blocks: ' . count($psaRows) . '.');
         }
 
         return $records;
     }
 
-    public function extractEtdRangeFromFile(string $filePath): array
+    private function parseBlock(array $rows, int $psaRow, ?int $customerId, array $referenceEtaByColumn): array
     {
-        $spreadsheet = IOFactory::load($filePath);
-        $worksheet = null;
+        if (!isset($rows[$psaRow + 5])) {
+            Log::debug('Block di row ' . ($psaRow + 1) . ' tidak lengkap, skip.');
+            return [];
+        }
 
-        foreach ($spreadsheet->getWorksheetIterator() as $ws) {
-            if (strtolower(trim($ws->getTitle())) === strtolower(self::SHEET_NAME)) {
-                $worksheet = $ws;
-                break;
+        $assyRow = $rows[$psaRow + 1];
+        $customerPartRow = $rows[$psaRow + 2];
+        $etdRow = $rows[$psaRow + 3];
+        $etaRow = $rows[$psaRow + 4];
+        $netRow = $rows[$psaRow + 5];
+        $familyRow = $rows[$psaRow + 6] ?? [];
+
+        $assyNumber = $this->readAssyNumber($assyRow, $customerPartRow, $psaRow);
+        if ($assyNumber === null || !$this->isValidBlock($psaRow, $assyNumber, $etdRow, $netRow)) {
+            return [];
+        }
+
+        $model = $this->cleanString($netRow[self::COL_G] ?? null) ?: null;
+        $family = $this->readFamily($familyRow);
+        $hasEtaRow = $this->cleanString($etaRow[self::COL_I] ?? null) === 'ETA Date';
+        $maxCols = max(count($etdRow), count($etaRow), count($netRow));
+        $records = [];
+
+        for ($col = self::DATA_COL_START; $col < $maxCols; $col++) {
+            $record = $this->recordFromColumn(
+                $psaRow,
+                $col,
+                $assyNumber,
+                $etdRow,
+                $etaRow,
+                $netRow,
+                $hasEtaRow,
+                $referenceEtaByColumn,
+                $customerId,
+                $model,
+                $family
+            );
+
+            if ($record !== null) {
+                $records[] = $record;
             }
         }
 
-        if ($worksheet === null) {
-            $worksheet = $spreadsheet->getActiveSheet();
-        }
+        Log::debug("Block row " . ($psaRow + 1) . " assy '{$assyNumber}': " . count($records) . ' kolom parsed.');
 
-        $allRows = [];
-        foreach ($worksheet->getRowIterator() as $row) {
-            $rowData = [];
-            foreach ($row->getCellIterator() as $cell) {
-                $rowData[] = $cell->getCalculatedValue();
-            }
-            $allRows[] = $rowData;
-        }
-
-        $dates = [];
-        foreach ($this->findPsaRows($allRows) as $psaIdx) {
-            $etdRow = $allRows[$psaIdx + 3] ?? [];
-            foreach ($etdRow as $colIdx => $value) {
-                $etd = $this->parseDateValue($value);
-                if ($etd !== null) {
-                    $dates[] = $etd->toDateString();
-                }
-            }
-        }
-
-        if (empty($dates)) {
-            return [null, null];
-        }
-
-        return [min($dates), max($dates)];
+        return $records;
     }
 
-    /**
-     * Extract week numbers mapping dari file YNA (jika ada di header atau label).
-     * 
-     * CATATAN: 
-     * - File YNA standard tidak memiliki week label eksplisit
-     * - Week number biasa di-resolve dari ProductionWeek berdasarkan ETD
-     * - Method ini tersedia untuk future enhancement jika ada week label
-     * 
-     * @return array [ colIdx => weekNumber ]
-     */
-    public function extractWeekNumbersFromFile(string $filePath): array
+    private function recordFromColumn(
+        int $psaRow,
+        int $col,
+        string $assyNumber,
+        array $etdRow,
+        array $etaRow,
+        array $netRow,
+        bool $hasEtaRow,
+        array $referenceEtaByColumn,
+        ?int $customerId,
+        ?string $model,
+        ?string $family
+    ): ?array {
+        $etd = $this->parseDateValue($etdRow[$col] ?? null);
+        if ($etd === null) {
+            return null;
+        }
+
+        [$eta, $etaSource] = $this->resolveEta($etaRow[$col] ?? null, $hasEtaRow, $referenceEtaByColumn[$col] ?? null);
+        $qty = $this->parseQty($netRow[$col] ?? null, $psaRow, $assyNumber, $col);
+
+        if ($qty < 0) {
+            Log::debug('Block row ' . ($psaRow + 1) . ' col ' . ($col + 1) . ": qty negatif ({$qty}), skip.");
+            return null;
+        }
+
+        $weekInfo = $this->resolveWeekFromEtd($customerId, $etd);
+
+        return [
+            'customer' => 'YNA',
+            'source_file' => null,
+            'assy_number' => $assyNumber,
+            'qty' => $qty,
+            'delivery_date' => $eta?->toDateString(),
+            'eta' => $eta?->toDateString(),
+            'etd' => $etd->toDateString(),
+            'week' => $weekInfo['week'],
+            'month' => $weekInfo['month'],
+            'year' => $weekInfo['year'],
+            'order_type' => 'FIRM',
+            'model' => $model,
+            'family' => $family,
+            'route' => null,
+            'port' => null,
+            'extra' => json_encode([
+                'row' => $psaRow + 1,
+                'col' => $col + 1,
+                'etd_raw' => $etd->toDateString(),
+                'eta_source' => $eta ? $etaSource : null,
+                'eta_fallback' => false,
+                'week_source' => $weekInfo['source'],
+                'model_source' => $model ? 'sr_car_line' : null,
+                'family_source' => $family ? 'sr_family' : null,
+            ]),
+        ];
+    }
+
+    private function readAssyNumber(array $assyRow, array $customerPartRow, int $psaRow): ?string
     {
-        $spreadsheet = IOFactory::load($filePath);
-        $worksheet = null;
+        $ynaPartLabel = $this->cleanString($assyRow[self::COL_F] ?? null);
+        $customerPartLabel = $this->cleanString($customerPartRow[self::COL_F] ?? null);
+        $assyNumber = $this->cleanString($customerPartRow[self::COL_G] ?? null);
 
-        foreach ($spreadsheet->getWorksheetIterator() as $ws) {
-            if (strtolower(trim($ws->getTitle())) === strtolower(self::SHEET_NAME)) {
-                $worksheet = $ws;
-                break;
+        if ($ynaPartLabel !== 'YNA Part#') {
+            Log::debug("Block row " . ($psaRow + 1) . ": label +1 bukan 'YNA Part#', got '{$ynaPartLabel}', skip.");
+            return null;
+        }
+
+        if ($customerPartLabel !== 'Customer Part#') {
+            Log::debug("Block row " . ($psaRow + 1) . ": label +2 bukan 'Customer Part#', got '{$customerPartLabel}', skip.");
+            return null;
+        }
+
+        if ($assyNumber === '') {
+            Log::debug('Block row ' . ($psaRow + 1) . ': customer part kosong di col G, skip.');
+            return null;
+        }
+
+        return $assyNumber;
+    }
+
+    private function isValidBlock(int $psaRow, string $assyNumber, array $etdRow, array $netRow): bool
+    {
+        $etdLabel = $this->cleanString($etdRow[self::COL_I] ?? null);
+        $netLabel = $this->cleanString($netRow[self::COL_I] ?? null);
+
+        if ($etdLabel !== 'ETD Date') {
+            Log::warning("Block row " . ($psaRow + 1) . " assy '{$assyNumber}': ETD label tidak cocok, got '{$etdLabel}'");
+            return false;
+        }
+
+        if ($netLabel !== 'Net') {
+            Log::warning("Block row " . ($psaRow + 1) . " assy '{$assyNumber}': Net label tidak cocok, got '{$netLabel}'");
+            return false;
+        }
+
+        return true;
+    }
+
+    private function readFamily(array $familyRow): ?string
+    {
+        if ($this->cleanString($familyRow[self::COL_F] ?? null) !== 'Family') {
+            return null;
+        }
+
+        return $this->cleanString($familyRow[self::COL_G] ?? null) ?: null;
+    }
+
+    private function resolveEta($etaRaw, bool $hasEtaRow, ?Carbon $referenceEta): array
+    {
+        $eta = $hasEtaRow ? $this->parseDateValue($etaRaw) : null;
+
+        if ($eta !== null) {
+            return [$eta, 'sr_eta_row'];
+        }
+
+        if ($referenceEta !== null) {
+            return [$referenceEta->copy(), 'yna_reference_eta_row'];
+        }
+
+        return [null, null];
+    }
+
+    private function parseQty($value, int $psaRow, string $assyNumber, int $col): int
+    {
+        if ($value === null || $value === '' || (is_string($value) && trim($value) === '')) {
+            return 0;
+        }
+
+        if (is_string($value) && str_starts_with(trim($value), '=')) {
+            $qty = $this->parseInteger($value);
+            if ($qty !== null) {
+                Log::debug("Block row " . ($psaRow + 1) . " assy '{$assyNumber}' col " . ($col + 1) . ": formula qty terbaca: {$qty}");
+                return $qty;
+            }
+
+            Log::warning("Block row " . ($psaRow + 1) . " assy '{$assyNumber}' col " . ($col + 1) . ": formula qty tidak terbaca, default 0. Raw: {$value}");
+            return 0;
+        }
+
+        return $this->parseInteger($value) ?? 0;
+    }
+
+    private function extractReferenceEtaByColumn(array $rows, array $psaRows): array
+    {
+        foreach ($psaRows as $psaRow) {
+            $etaRow = $rows[$psaRow + 4] ?? [];
+            if ($this->cleanString($etaRow[self::COL_I] ?? null) !== 'ETA Date') {
+                continue;
+            }
+
+            $etaByColumn = $this->dateMapFromRow($etaRow);
+            if ($etaByColumn !== []) {
+                Log::info('YNA reference ETA row memakai block row ' . ($psaRow + 1) . ' dengan ' . count($etaByColumn) . ' kolom ETA.');
+                return $etaByColumn;
             }
         }
 
-        if ($worksheet === null) {
-            $worksheet = $spreadsheet->getActiveSheet();
+        Log::warning('YNA reference ETA row tidak ditemukan; ETA kosong akan tetap null.');
+        return [];
+    }
+
+    public function extractEtdRangeFromFile(string $filePath, int $sheetIndex = 0): array
+    {
+        $rows = $this->worksheetRows($this->resolveWorksheet(IOFactory::load($filePath), $sheetIndex));
+        $dates = [];
+
+        foreach ($this->findPsaRows($rows) as $psaRow) {
+            foreach ($this->dateMapFromRow($rows[$psaRow + 3] ?? []) as $date) {
+                $dates[] = $date->toDateString();
+            }
         }
 
-        $allRows = [];
-        foreach ($worksheet->getRowIterator() as $row) {
-            $rowData = [];
-            foreach ($row->getCellIterator() as $cell) {
-                $rowData[] = $cell->getCalculatedValue();
-            }
-            $allRows[] = $rowData;
-        }
+        return $dates === [] ? [null, null] : [min($dates), max($dates)];
+    }
 
-        $weekMap = [];
-        
-        // Cari row yang kemungkinan memiliki week labels
-        // Biasanya row pertama atau row sebelum data dimulai
-        for ($rowIdx = 0; $rowIdx < min(5, count($allRows)); $rowIdx++) {
-            $row = $allRows[$rowIdx];
-            $weekCount = 0;
-            
-            // Scan kolom data (dari idx 9 = kolom J)
-            for ($colIdx = self::DATA_COL_START; $colIdx < count($row); $colIdx++) {
-                $cellVal = $this->cleanString($row[$colIdx] ?? '');
-                
-                // Cari pattern "Week 1", "W1", "Week1", "1", dll
-                if (preg_match('/^w(?:eek)?\s*(\d+)$/i', $cellVal, $m)) {
-                    $weekNum = (int) $m[1];
-                    $weekMap[$colIdx] = $weekNum;
-                    $weekCount++;
-                } elseif (is_numeric($cellVal) && $cellVal > 0 && $cellVal < 53) {
-                    // Angka murni 1-52 (week number)
-                    $weekMap[$colIdx] = (int) $cellVal;
-                    $weekCount++;
-                }
-            }
-            
-            // Jika found week labels konsisten (>= 3 weeks), gunakan ini
-            if ($weekCount >= 3) {
-                Log::info("Extract week numbers dari row " . ($rowIdx + 1) . ": " . count($weekMap) . " weeks found");
+    public function extractWeekNumbersFromFile(string $filePath, int $sheetIndex = 0): array
+    {
+        $rows = $this->worksheetRows($this->resolveWorksheet(IOFactory::load($filePath), $sheetIndex));
+
+        for ($row = 0; $row < min(5, count($rows)); $row++) {
+            $weekMap = $this->weekMapFromRow($rows[$row]);
+            if (count($weekMap) >= 3) {
+                Log::info('Extract week numbers dari row ' . ($row + 1) . ': ' . count($weekMap) . ' weeks found');
                 return $weekMap;
             }
         }
-        
-        Log::debug("No explicit week labels found in file, will use ETD-based resolution");
+
+        Log::debug('No explicit week labels found in file, will use ETD-based resolution');
         return [];
+    }
+
+    private function resolveWorksheet(Spreadsheet $spreadsheet, int $sheetIndex): Worksheet
+    {
+        if ($sheetIndex >= 0 && $sheetIndex < $spreadsheet->getSheetCount()) {
+            $worksheet = $spreadsheet->getSheet($sheetIndex);
+            Log::info("YNA memakai worksheet pilihan user index {$sheetIndex}: " . $worksheet->getTitle());
+            return $worksheet;
+        }
+
+        foreach ($spreadsheet->getWorksheetIterator() as $worksheet) {
+            if (strtolower(trim($worksheet->getTitle())) === strtolower(self::FALLBACK_SHEET_NAME)) {
+                Log::warning("Sheet index {$sheetIndex} tidak valid, fallback ke sheet '" . self::FALLBACK_SHEET_NAME . "'.");
+                return $worksheet;
+            }
+        }
+
+        $worksheet = $spreadsheet->getActiveSheet();
+        Log::warning("Sheet index {$sheetIndex} tidak valid, menggunakan sheet aktif: " . $worksheet->getTitle());
+
+        return $worksheet;
+    }
+
+    private function worksheetRows(Worksheet $worksheet): array
+    {
+        $rows = [];
+
+        foreach ($worksheet->getRowIterator() as $row) {
+            $rowData = [];
+            foreach ($row->getCellIterator() as $cell) {
+                $rowData[] = $cell->getCalculatedValue();
+            }
+            $rows[] = $rowData;
+        }
+
+        return $rows;
+    }
+
+    private function findPsaRows(array $rows): array
+    {
+        $psaRows = [];
+
+        foreach ($rows as $index => $row) {
+            if ($this->cleanString($row[self::COL_F] ?? null) === 'PSA#') {
+                $psaRows[] = $index;
+            }
+        }
+
+        return $psaRows;
+    }
+
+    private function dateMapFromRow(array $row): array
+    {
+        $dates = [];
+
+        for ($col = self::DATA_COL_START; $col < count($row); $col++) {
+            $date = $this->parseDateValue($row[$col] ?? null);
+            if ($date !== null) {
+                $dates[$col] = $date;
+            }
+        }
+
+        return $dates;
+    }
+
+    private function weekMapFromRow(array $row): array
+    {
+        $weekMap = [];
+
+        for ($col = self::DATA_COL_START; $col < count($row); $col++) {
+            $value = $this->cleanString($row[$col] ?? null);
+
+            if (preg_match('/^w(?:eek)?\s*(\d+)$/i', $value, $match)) {
+                $weekMap[$col] = (int) $match[1];
+            } elseif (is_numeric($value) && (int) $value > 0 && (int) $value < 53) {
+                $weekMap[$col] = (int) $value;
+            }
+        }
+
+        return $weekMap;
     }
 
     private function resolveWeekFromEtd(?int $customerId, Carbon $etd): array
@@ -432,9 +418,9 @@ class YNAMapper implements SRMapperInterface
         $weekInfo = $this->getYNAWeekInfo($etd);
 
         return [
-            'week'   => $weekInfo['week'],
-            'month'  => $weekInfo['month_year'],
-            'year'   => $etd->year,
+            'week' => $weekInfo['week'],
+            'month' => $weekInfo['month_year'],
+            'year' => $etd->year,
             'source' => 'yna_etd',
         ];
     }
@@ -442,57 +428,28 @@ class YNAMapper implements SRMapperInterface
     private function getYNAWeekInfo(Carbon $date): array
     {
         $weekMonday = $date->copy()->startOfWeek(Carbon::MONDAY);
-        $remainingDaysInMonth = $weekMonday->daysInMonth - $weekMonday->day + 1;
-        $weekMonthDate = $weekMonday->copy();
+        $monthDate = $weekMonday->copy();
 
-        if ($remainingDaysInMonth <= 1) {
-            $weekMonthDate->addMonthNoOverflow();
+        if (($weekMonday->daysInMonth - $weekMonday->day + 1) <= 1) {
+            $monthDate->addMonthNoOverflow();
         }
 
-        $targetYear = $weekMonthDate->year;
-        $targetMonth = $weekMonthDate->month;
+        $firstMonday = Carbon::create($monthDate->year, $monthDate->month, 1)->startOfWeek(Carbon::MONDAY);
 
-        $firstOfMonth = Carbon::create($targetYear, $targetMonth, 1);
-        $firstMonday = $firstOfMonth->copy()->startOfWeek(Carbon::MONDAY);
-
-        if ($firstMonday->month !== $targetMonth) {
-            $prevMonthRemaining = $firstMonday->daysInMonth - $firstMonday->day + 1;
-            if ($prevMonthRemaining > 1) {
+        if ($firstMonday->month !== $monthDate->month) {
+            $remainingDaysInPreviousMonth = $firstMonday->daysInMonth - $firstMonday->day + 1;
+            if ($remainingDaysInPreviousMonth > 1) {
                 $firstMonday->addWeek();
             }
         }
 
-        $daysFromFirstMonday = $firstMonday->diffInDays($weekMonday, false);
-        $weekNumber = intdiv($daysFromFirstMonday, 7) + 1;
+        $weekNumber = intdiv($firstMonday->diffInDays($weekMonday, false), 7) + 1;
 
         return [
-            'week'       => min($weekNumber, 5),
-            'month_year' => $weekMonthDate->format('Y-m'),
+            'week' => min($weekNumber, 5),
+            'month_year' => $monthDate->format('Y-m'),
         ];
     }
-
-    // ─────────────────────────────────────────────────────────────────────
-    // PRIVATE — Detection helpers
-    // ─────────────────────────────────────────────────────────────────────
-
-    /**
-     * Temukan semua index baris yang merupakan anchor PSA# (col F = 'PSA#').
-     */
-    private function findPsaRows(array $allRows): array
-    {
-        $indices = [];
-        foreach ($allRows as $idx => $row) {
-            $fVal = $this->cleanString($row[5] ?? null); // col F = index 5
-            if ($fVal === 'PSA#') {
-                $indices[] = $idx;
-            }
-        }
-        return $indices;
-    }
-
-    // ─────────────────────────────────────────────────────────────────────
-    // PRIVATE — Parse helpers
-    // ─────────────────────────────────────────────────────────────────────
 
     private function parseDateValue($value): ?Carbon
     {
@@ -500,94 +457,77 @@ class YNAMapper implements SRMapperInterface
             return null;
         }
 
-        // PhpSpreadsheet mengembalikan DateTime object jika getCalculatedValue()
-        if ($value instanceof \DateTime || $value instanceof \DateTimeImmutable) {
+        if ($value instanceof \DateTimeInterface) {
             return Carbon::instance($value)->startOfDay();
         }
 
-        // Excel serial number (float atau int > 40000)
-        // Angka > 40000 adalah serial date mulai dari 1900
         if (is_float($value) || (is_int($value) && $value > 40000)) {
             try {
-                $dt = ExcelDate::excelToDateTimeObject($value);
-                return Carbon::instance($dt)->startOfDay();
-            } catch (\Throwable $e) {
-                // fall through ke string parsing
-                Log::debug("ExcelDate conversion failed for value: " . var_export($value, true));
+                return Carbon::instance(ExcelDate::excelToDateTimeObject($value))->startOfDay();
+            } catch (\Throwable) {
+                Log::debug('ExcelDate conversion failed for value: ' . var_export($value, true));
             }
         }
 
-        // String tanggal
-        if (is_string($value)) {
-            $value = trim($value);
+        if (!is_string($value)) {
+            return null;
+        }
 
-            // Skip formula string, blank-ish string
-            if (empty($value) || str_starts_with($value, '=')) {
-                return null;
-            }
+        $value = trim($value);
+        if ($value === '' || str_starts_with($value, '=')) {
+            return null;
+        }
 
-            // Coba format standar lebih dulu (ketat)
-            $formats = ['Y-m-d', 'Y/m/d', 'd/m/Y', 'm/d/Y', 'd-m-Y', 'n/j/Y', 'n/j/y'];
-            foreach ($formats as $fmt) {
-                try {
-                    // BUG FIX: Carbon::createFromFormat bisa return false, bukan null/throw
-                    $d = Carbon::createFromFormat($fmt, $value);
-                    if ($d !== false && $d->format($fmt) === $value) {
-                        return $d->startOfDay();
-                    }
-                } catch (\Throwable $e) {
-                    // try next format
-                }
-            }
-
-            // Last resort: Carbon::parse (sangat fleksibel tapi kurang strict)
+        foreach (['Y-m-d', 'Y/m/d', 'd/m/Y', 'm/d/Y', 'd-m-Y', 'n/j/Y', 'n/j/y'] as $format) {
             try {
-                $parsed = Carbon::parse($value);
-                // Sanity check: tahun harus masuk akal (2000-2100)
-                if ($parsed->year >= 2000 && $parsed->year <= 2100) {
-                    return $parsed->startOfDay();
+                $date = Carbon::createFromFormat($format, $value);
+                if ($date !== false && $date->format($format) === $value) {
+                    return $date->startOfDay();
                 }
-            } catch (\Throwable $e) {
-                Log::debug("Date parsing failed for string: " . $value);
+            } catch (\Throwable) {
+                // Try the next format.
             }
         }
 
-        return null;
+        try {
+            $date = Carbon::parse($value);
+            return $date->year >= 2000 && $date->year <= 2100 ? $date->startOfDay() : null;
+        } catch (\Throwable) {
+            Log::debug('Date parsing failed for string: ' . $value);
+            return null;
+        }
     }
 
     private function parseInteger($value): ?int
     {
-        if ($value === null || $value === '') return null;
-        if (is_int($value)) return $value;
-        if (is_float($value)) return (int) round($value);
-
-        // Handle string dengan angka
-        $strVal = (string) $value;
-        $strVal = trim($strVal);
-
-        // Skip formula string
-        if (str_starts_with($strVal, '=')) {
+        if ($value === null || $value === '') {
             return null;
         }
 
-        // Extract digits (allow negative)
-        $cleaned = preg_replace('/[^0-9\-]/', '', $strVal);
-        
-        if (empty($cleaned)) return null;
-        
-        $int = (int) $cleaned;
-        
-        // Sanity check: qty tidak boleh sangat besar (> 1 juta)
-        if (abs($int) > 1000000) {
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (is_float($value)) {
+            return (int) round($value);
+        }
+
+        $value = trim((string) $value);
+        if ($value === '' || str_starts_with($value, '=')) {
             return null;
         }
-        
-        return $int;
+
+        $cleaned = preg_replace('/[^0-9\-]/', '', $value);
+        if ($cleaned === '') {
+            return null;
+        }
+
+        $number = (int) $cleaned;
+        return abs($number) > 1000000 ? null : $number;
     }
 
     private function cleanString($value): string
     {
-        if ($value === null) return '';
-        return trim((string) $value);
+        return trim((string) ($value ?? ''));
     }
 }

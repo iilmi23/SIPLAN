@@ -18,7 +18,7 @@ return [
                 'model'       => 0,  // A - MODEL
                 'family'      => 1,  // B - FAMILY
                 'no'          => 2,  // C - No.
-                'part_number' => 3,  // D - PRODUCT NO
+                'assy_number' => 3,  // D - PRODUCT NO
                 // col E (idx 4) = kosong / merged
                 'sfx'         => 5,  // F - SFX  ← FIX: was 4
                 // col G (idx 6) = kosong / merged
@@ -45,7 +45,7 @@ return [
             ],
         ],
 
-        // ─── Sheet: JAI (加新件號) (data weekly + part number baru) ───
+        // ─── Sheet: JAI (加新件號) (data weekly + assy number baru) ───
         'TYC_JAI' => [
             'name'          => 'TYC JAI Template (Weekly)',
             'customer_code' => 'TYC',
@@ -71,7 +71,7 @@ return [
                 'model'       => 0,  // A - MODEL
                 'family'      => 1,  // B - FAMILY
                 'no'          => 2,  // C - No.
-                'part_number' => 3,  // D - PRODUCT NO
+                'assy_number' => 3,  // D - PRODUCT NO
                 // col E (idx 4) = kosong
                 'sfx'         => 5,  // F - SFX  ← FIX: was 4
                 // col G (idx 6) = kosong

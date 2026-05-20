@@ -1,18 +1,41 @@
 import { Link, usePage } from '@inertiajs/react';
-import { useState, useRef, useEffect } from 'react';
-import { UserCircleIcon } from "@heroicons/react/24/outline";
+import { useEffect, useRef, useState } from 'react';
+import { MoonIcon, SunIcon, UserCircleIcon } from '@heroicons/react/24/outline';
+import { useTheme } from '@/contexts/ThemeContext';
+
+const SIDEBAR_EXPANDED_W = 240;
+const SIDEBAR_COLLAPSED_W = 68;
 
 export default function Topbar({ sidebarOpen, setSidebarOpen }) {
     const [open, setOpen] = useState(false);
     const dropdownRef = useRef();
     const user = usePage().props.auth?.user;
+    const { isDark, toggleTheme } = useTheme();
+    const leftOffset = sidebarOpen ? SIDEBAR_EXPANDED_W : SIDEBAR_COLLAPSED_W;
+    const headerStyle = {
+        left: leftOffset,
+        transition: 'left 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
+    };
 
-    // Guard: jika user belum ter-share, render minimal
+    useEffect(() => {
+        function handleClick(e) {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+                setOpen(false);
+            }
+        }
+
+        document.addEventListener('mousedown', handleClick);
+        return () => document.removeEventListener('mousedown', handleClick);
+    }, []);
+
     if (!user) {
         return (
-            <header className="fixed top-0 left-0 right-0 h-[60px] bg-white border-b border-gray-200 shadow-sm z-50">
-                <div className="flex items-center justify-between h-full px-5 md:px-6">
-                    <div>Loading...</div>
+            <header
+                className="fixed right-0 top-0 z-50 h-16 border-b border-gray-200 bg-white transition-colors duration-300 dark:border-slate-700/40 dark:bg-[#111827]"
+                style={headerStyle}
+            >
+                <div className="flex h-full items-center justify-between px-5 md:px-6">
+                    <div className="text-gray-700 dark:text-slate-200">Loading...</div>
                 </div>
             </header>
         );
@@ -22,73 +45,57 @@ export default function Topbar({ sidebarOpen, setSidebarOpen }) {
         admin: 'Admin',
         ppc: 'PPC',
     }[user.role] ?? 'User';
-    const isAdmin = user.role === 'admin';
-
-    useEffect(() => {
-        function handleClick(e) {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-                setOpen(false);
-            }
-        }
-        document.addEventListener("mousedown", handleClick);
-        return () => document.removeEventListener("mousedown", handleClick);
-    }, []);
 
     return (
-        <header className="fixed top-0 left-0 right-0 h-[60px] bg-white border-b border-gray-200 shadow-sm z-50">
-            <div className="flex items-center justify-between h-full px-5 md:px-6">
-
-                {/* LEFT SECTION */}
+        <header
+            className="fixed right-0 top-0 z-50 h-16 border-b border-gray-200 bg-white transition-colors duration-300 dark:border-slate-700/40 dark:bg-[#111827]"
+            style={headerStyle}
+        >
+            <div className="flex h-full items-center justify-between px-5 md:px-6">
                 <div className="flex items-center gap-5">
-
-                    {/* Toggle Sidebar (jika ada) */}
                     <button
                         onClick={() => setSidebarOpen(!sidebarOpen)}
-                        className="md:hidden text-gray-600 hover:text-[#1D6F42]"
+                        className="text-gray-600 hover:text-[#1D6F42] dark:text-slate-300 dark:hover:text-emerald-400 md:hidden"
+                        aria-label="Toggle sidebar"
                     >
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
                         </svg>
                     </button>
-
-                    {/* LOGO - ukuran diperbesar & proporsional */}
-                    <Link href="/dashboard" className="flex justify-start">
-                        <img
-                            src="/images/jai.jpg"
-                            alt="SIPLAN Logo"
-                            className="h-11 w-38"  // 
-                        />
-                    </Link>
-
                 </div>
 
-                {/* RIGHT SECTION */}
                 <div className="flex items-center gap-4">
+                    <button
+                        type="button"
+                        onClick={toggleTheme}
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-600 transition-colors hover:border-[#1D6F42]/30 hover:bg-gray-50 hover:text-[#1D6F42] dark:border-slate-700/60 dark:bg-[#172033] dark:text-slate-200 dark:hover:border-emerald-400/40 dark:hover:bg-slate-700 dark:hover:text-emerald-300"
+                        aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                        title={isDark ? 'Light mode' : 'Dark mode'}
+                    >
+                        {isDark ? <SunIcon className="h-5 w-5" /> : <MoonIcon className="h-5 w-5" />}
+                    </button>
 
-                    {/* PROFILE */}
                     <div className="relative" ref={dropdownRef}>
                         <button
                             onClick={() => setOpen(!open)}
-                            className="flex items-center gap-3 hover:bg-gray-50 px-3 py-1.5 rounded-xl transition-all"
+                            className="flex items-center gap-3 rounded-xl px-3 py-1.5 transition-all hover:bg-gray-50 dark:hover:bg-[#172033]"
                         >
-                            {/* Avatar dengan fallback icon orang */}
                             <div className="relative">
                                 <img
-                                    src="https://ui-avatars.com/api/?name=Admin&background=1D6F42&color=fff&size=128"
-                                    alt="Admin"
-                                    className="w-10 h-10 rounded-full border-2 border-gray-200 object-cover"  // ← diperbesar dari w-9 h-9
+                                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name ?? 'User')}&background=1D6F42&color=fff&size=128`}
+                                    alt={user?.name ?? 'User'}
+                                    className="h-10 w-10 rounded-full border-2 border-gray-200 object-cover dark:border-slate-700"
                                 />
-                                {/* Fallback icon jika gambar gagal load */}
-                                <UserCircleIcon className="absolute inset-0 w-10 h-10 text-[#1D6F42]/30 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <UserCircleIcon className="absolute inset-0 h-10 w-10 text-[#1D6F42]/30 opacity-0 transition-opacity group-hover:opacity-100" />
                             </div>
 
-                            <div className="hidden md:flex flex-col items-start">
-                                <span className="text-sm font-semibold text-gray-800">{user?.name ?? 'User'}</span>
-                                <span className="text-xs text-gray-500">{roleLabel}</span>
+                            <div className="hidden flex-col items-start md:flex">
+                                <span className="text-sm font-semibold text-gray-800 dark:text-slate-100">{user?.name ?? 'User'}</span>
+                                <span className="text-xs text-gray-500 dark:text-slate-400">{roleLabel}</span>
                             </div>
 
                             <svg
-                                className={`w-4 h-4 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`}
+                                className={`h-4 w-4 text-gray-500 transition-transform dark:text-slate-400 ${open ? 'rotate-180' : ''}`}
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
@@ -97,57 +104,40 @@ export default function Topbar({ sidebarOpen, setSidebarOpen }) {
                             </svg>
                         </button>
 
-                        {/* DROPDOWN */}
                         {open && (
-                            <div className="absolute right-0 mt-2 w-64 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden z-50">
-
-                                {/* Header Dropdown */}
-                                <div className="bg-[#1D6F42] text-white p-5">
+                            <div className="absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl dark:border-slate-700/60 dark:bg-[#111827]">
+                                <div className="bg-[#1D6F42] p-5 text-white">
                                     <div className="flex items-center gap-3">
                                         <img
                                             src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name ?? 'User')}&background=1D6F42&color=fff&size=128`}
                                             alt={user?.name ?? 'User'}
-                                            className="w-12 h-12 rounded-full border-2 border-white/30"
+                                            className="h-12 w-12 rounded-full border-2 border-white/30"
                                         />
                                         <div>
                                             <p className="font-semibold">{user?.name ?? 'User'}</p>
-                                            <p className="text-xs text-green-100 mt-0.5">{user?.email ?? ''}</p>
+                                            <p className="mt-0.5 text-xs text-green-100">{user?.email ?? ''}</p>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Menu Items */}
                                 <div className="p-2">
                                     <Link
                                         href={route('profile.edit')}
-                                        className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-[#1D6F42] transition-colors"
+                                        className="flex items-center gap-3 rounded-lg px-4 py-2.5 text-gray-700 transition-colors hover:bg-gray-50 hover:text-[#1D6F42] dark:text-slate-200 dark:hover:bg-[#172033] dark:hover:text-emerald-300"
                                     >
-                                        <UserCircleIcon className="w-5 h-5" />
+                                        <UserCircleIcon className="h-5 w-5" />
                                         <span>Profile</span>
                                     </Link>
 
-                                    {isAdmin && (
-                                        <Link
-                                            href={route('settings')}
-                                            className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-[#1D6F42] transition-colors"
-                                        >
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                            </svg>
-                                            <span>Settings</span>
-                                        </Link>
-                                    )}
-
-                                    <div className="border-t border-gray-100 my-2"></div>
+                                    <div className="my-2 border-t border-gray-100 dark:border-slate-700/40"></div>
 
                                     <Link
                                         href={route('logout')}
                                         method="post"
                                         as="button"
-                                        className="w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-lg text-red-600 hover:bg-red-50 transition-colors"
+                                        className="flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-left text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
                                     >
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                                         </svg>
                                         <span>Logout</span>

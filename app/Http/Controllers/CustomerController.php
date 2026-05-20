@@ -39,7 +39,6 @@ class CustomerController extends Controller
                 'max:50',
                 'unique:customers,code'
             ],
-            'keterangan' => 'nullable|string',
         ], [
             'name.unique' => 'Customer already exists!',
             'code.unique' => 'Code is already in use!',
@@ -48,7 +47,6 @@ class CustomerController extends Controller
         Customer::create([
             'name' => $request->name,
             'code' => $request->code,
-            'keterangan' => $request->keterangan,
         ]);
 
         return redirect()->route('customers.index')
@@ -80,7 +78,6 @@ class CustomerController extends Controller
                 'max:50',
                 Rule::unique('customers', 'code')->ignore($customer->id),
             ],
-            'keterangan' => 'nullable|string',
         ], [
             'name.unique' => 'Customer sudah ada!',
             'code.unique' => 'Kode sudah digunakan!',
@@ -89,7 +86,6 @@ class CustomerController extends Controller
         $customer->update([
             'name' => $request->name,
             'code' => $request->code,
-            'keterangan' => $request->keterangan,
         ]);
 
         return redirect()->route('customers.index')

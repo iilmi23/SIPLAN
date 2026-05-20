@@ -24,7 +24,7 @@ export default function Login({ status }) {
 
             {/* Background Image Full Screen */}
             <div 
-                className="min-h-screen flex items-center justify-center bg-cover bg-center bg-no-repeat relative"
+                className="auth-page min-h-screen flex items-center justify-center bg-cover bg-center bg-no-repeat relative"
                 style={{
                     backgroundImage: "url('/images/coba.jpg')",
                 }}

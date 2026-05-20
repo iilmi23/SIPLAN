@@ -4,9 +4,12 @@ namespace App\Exports;
 
 /**
  * SAIExport — Export untuk customer SAI
- * Menggunakan struktur 1W-5W dengan warna kuning (FIRM) dan orange (FORECAST)
+ * Menggunakan 15 slot kolom per bulan dengan warna kuning (FIRM) dan orange (FORECAST)
  */
 class SAIExport extends YCExport
 {
-    // Inherits all styling dan logic dari YCExport
+    protected function periodsPerMonth(): int
+    {
+        return 15;
+    }
 }
