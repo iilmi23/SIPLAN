@@ -147,6 +147,16 @@ const ROUTES = {
 
 type RouteName = keyof typeof ROUTES;
 
+const getBasePath = (): string => {
+    if (typeof window !== 'undefined') {
+        const pathname = window.location.pathname;
+        if (pathname.toLowerCase().startsWith('/siplan/public')) {
+            return pathname.substring(0, 14);
+        }
+    }
+    return '';
+};
+
 const routeHelper = ((name?: string, params: RouteParams = {}, absolute = false) => {
     if (!name) {
         return routeHelper;
@@ -182,11 +192,14 @@ const routeHelper = ((name?: string, params: RouteParams = {}, absolute = false)
         });
     }
 
+    const base = getBasePath();
+    const resolvedUrl = `${base}${url}`;
+
     if (absolute) {
-        return `${window.location.origin}${url}`;
+        return `${window.location.origin}${resolvedUrl}`;
     }
 
-    return url;
+    return resolvedUrl;
 }) as RouteHelper;
 
 routeHelper.current = (name?: string) => {

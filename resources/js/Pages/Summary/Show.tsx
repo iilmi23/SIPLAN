@@ -153,7 +153,7 @@ export default function SummaryShow({
     const [periodForm, setPeriodForm] = useState<Record<string, any>>({});
     const [isSavingPeriod, setIsSavingPeriod] = useState(false);
     const [periodsPerMonth, setPeriodsPerMonth] = useState(() => {
-        const saved = localStorage.getItem(`simsr_periods_per_month_${sr.customer}_${sr.id}`);
+        const saved = localStorage.getItem(`siplan_periods_per_month_${sr.customer}_${sr.id}`);
         if (saved) return parseInt(saved, 10);
         return sr.customer?.toUpperCase() === 'SAI' ? 15 : 5;
     });
@@ -439,7 +439,7 @@ export default function SummaryShow({
                                                 onClick={() => {
                                                     const newVal = Math.max(1, periodsPerMonth - 1);
                                                     setPeriodsPerMonth(newVal);
-                                                    localStorage.setItem(`simsr_periods_per_month_${sr.customer}_${sr.id}`, String(newVal));
+                                                    localStorage.setItem(`siplan_periods_per_month_${sr.customer}_${sr.id}`, String(newVal));
                                                 }}
                                                 className="flex h-8 w-8 items-center justify-center rounded-md bg-white text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50 dark:bg-slate-800 dark:text-slate-200"
                                             >
@@ -451,7 +451,7 @@ export default function SummaryShow({
                                                 onClick={() => {
                                                     const newVal = Math.min(30, periodsPerMonth + 1);
                                                     setPeriodsPerMonth(newVal);
-                                                    localStorage.setItem(`simsr_periods_per_month_${sr.customer}_${sr.id}`, String(newVal));
+                                                    localStorage.setItem(`siplan_periods_per_month_${sr.customer}_${sr.id}`, String(newVal));
                                                 }}
                                                 className="flex h-8 w-8 items-center justify-center rounded-md bg-white text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50 dark:bg-slate-800 dark:text-slate-200"
                                             >

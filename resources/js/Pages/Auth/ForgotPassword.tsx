@@ -1,4 +1,5 @@
 import { Head, useForm, Link } from '@inertiajs/react';
+import { asset } from '@/utils';
 
 export default function ForgotPassword({ status }: { status?: string }) {
     const { data, setData, post, processing, errors } = useForm({
@@ -22,8 +23,8 @@ export default function ForgotPassword({ status }: { status?: string }) {
 
                         {/* Logos */}
                         <div className="flex items-center justify-between mb-auto pb-6">
-                            <img src="/images/jai.jpg" className="h-8 object-contain" alt="JAI Logo" />
-                            <img src="/images/kampus.png" className="h-8 object-contain" alt="Kampus Logo" />
+                            <img src={asset('images/jai.jpg')} className="h-8 object-contain" alt="JAI Logo" />
+                            <img src={asset('images/kampus.png')} className="h-8 object-contain" alt="Kampus Logo" />
                         </div>
 
                         {/* Form Section */}

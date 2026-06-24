@@ -50,7 +50,7 @@ class SirepMasterSyncService
                 }
             }
 
-            // Hapus carline di database lokal SIMSR yang tidak ada lagi di respon API SIREP terbaru,
+            // Hapus carline di database lokal SIPLAN yang tidak ada lagi di respon API SIREP terbaru,
             // tetapi hanya jika carline tersebut tidak sedang digunakan oleh data Assy atau SR.
             if (!empty($syncedCodes)) {
                 $carlinesToDelete = CarLine::whereNotIn('code', $syncedCodes)->get();

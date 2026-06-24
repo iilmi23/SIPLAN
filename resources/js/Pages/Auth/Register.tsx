@@ -1,5 +1,6 @@
 import { Head, useForm, Link } from '@inertiajs/react';
 import { useState } from 'react';
+import { asset } from '@/utils';
 
 export default function Register() {
     const { data, setData, post, processing, errors, reset } = useForm({
@@ -27,7 +28,7 @@ export default function Register() {
             <div 
                 className="auth-page min-h-screen flex items-center justify-center bg-cover bg-center bg-no-repeat relative"
                 style={{
-                    backgroundImage: "url('/images/coba.jpg')",
+                    backgroundImage: `url(${asset('images/coba.jpg')})`,
                 }}
             >
                 {/* Overlay tipis */}
@@ -42,12 +43,12 @@ export default function Register() {
                         {/* LOGO - SAMA DENGAN LOGIN */}
                         <div className="flex justify-between items-center mb-6">
                             <img
-                                src="/images/jai.jpg"
+                                src={asset('images/jai.jpg')}
                                 className="h-10 max-w-[90px] object-contain"
                                 alt="JAI Logo"
                             />
                             <img
-                                src="/images/kampus.png"
+                                src={asset('images/kampus.png')}
                                 className="h-10"
                                 alt="Kampus Logo"
                             />

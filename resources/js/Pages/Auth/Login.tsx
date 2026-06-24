@@ -1,6 +1,7 @@
 import { Head, useForm, Link } from '@inertiajs/react';
 import Checkbox from '@/Components/Checkbox';
 import { useState } from 'react';
+import { asset } from '@/utils';
 
 export default function Login({ status }) {
     const { data, setData, post, processing, errors, reset } = useForm({
@@ -43,12 +44,12 @@ export default function Login({ status }) {
                         {/* Header: Logos */}
                         <div className="flex justify-between items-center mb-5">
                             <img
-                                src="/images/jai.jpg"
+                                src={asset('images/jai.jpg')}
                                 className="h-9 max-w-[120px] object-contain"
                                 alt="JAI Logo"
                             />
                             <img
-                                src="/images/kampus.png"
+                                src={asset('images/kampus.png')}
                                 className="h-7 max-w-[90px] object-contain opacity-80"
                                 alt="Kampus Logo"
                             />

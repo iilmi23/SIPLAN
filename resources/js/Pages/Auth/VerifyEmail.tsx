@@ -1,5 +1,6 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import { useState } from 'react';
+import { asset } from '@/utils';
 
 export default function VerifyEmail({ status }) {
     const { post, processing } = useForm({});
@@ -23,7 +24,7 @@ export default function VerifyEmail({ status }) {
             <div 
                 className="auth-page min-h-screen flex items-center justify-center bg-cover bg-center bg-no-repeat relative"
                 style={{
-                    backgroundImage: "url('/images/coba.jpg')",
+                    backgroundImage: `url(${asset('images/coba.jpg')})`,
                 }}
             >
                 {/* Overlay tipis */}
@@ -38,12 +39,12 @@ export default function VerifyEmail({ status }) {
                         {/* LOGO - SAMA DENGAN HALAMAN LAIN */}
                         <div className="flex justify-between items-center mb-6">
                             <img
-                                src="/images/jai.jpg"
+                                src={asset('images/jai.jpg')}
                                 className="h-10 max-w-[90px] object-contain"
                                 alt="JAI Logo"
                             />
                             <img
-                                src="/images/kampus.png"
+                                src={asset('images/kampus.png')}
                                 className="h-10"
                                 alt="Kampus Logo"
                             />
