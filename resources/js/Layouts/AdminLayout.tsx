@@ -18,21 +18,36 @@ const getTitleFromUrl = (url?: string): string | null => {
         return null;
     }
 
-    const path = url.split('?')[0];
+    let path = url.split('?')[0];
+
+    const getBasePath = (): string => {
+        if (typeof window !== 'undefined') {
+            const pathname = window.location.pathname;
+            if (pathname.toLowerCase().startsWith('/siplan/public')) {
+                return pathname.substring(0, 14);
+            }
+        }
+        return '';
+    };
+
+    const base = getBasePath();
+    if (base && path.startsWith(base)) {
+        path = path.substring(base.length);
+    }
+    if (!path.startsWith('/')) {
+        path = '/' + path;
+    }
 
     if (path === '/dashboard') {
         return 'Dashboard';
     }
-    if (path.startsWith('/sr/upload')) {
+    if (path.startsWith('/sr/upload') || path.includes('/shipping-release/upload')) {
         return 'Upload SR';
     }
     if (path.startsWith('/unmapped-assy')) {
         return 'Unmapped Assy';
     }
     if (path.includes('/ports')) {
-        return 'Ports';
-    }
-    if (path.startsWith('/ports')) {
         return 'Ports';
     }
     if (path.startsWith('/customers')) {
@@ -50,11 +65,20 @@ const getTitleFromUrl = (url?: string): string | null => {
     if (path.startsWith('/history')) {
         return 'History';
     }
-    // if (path.startsWith('/settings')) {
-    //     return 'Settings';
-    // }
     if (path.startsWith('/profile')) {
         return 'Profile';
+    }
+    if (path.startsWith('/users')) {
+        return 'User Management';
+    }
+    if (path.startsWith('/sr-mapping-templates')) {
+        return 'SR Templates';
+    }
+    if (path.startsWith('/production-week')) {
+        return 'Production Week';
+    }
+    if (path.startsWith('/assy')) {
+        return 'Assy';
     }
 
     return null;

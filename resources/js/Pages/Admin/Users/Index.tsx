@@ -19,6 +19,7 @@ import {
 } from "@heroicons/react/24/outline";
 import EditModal from "./EditModal";
 import ShowModal from "./ShowModal";
+import CreateModal from "./CreateModal";
 
 const roleBadge = (role) => ({
     admin: "bg-red-50 text-red-700 border-red-100",
@@ -41,6 +42,8 @@ export default function Index({ users, permissionCatalog = {}, roleDefaults = {}
     const [deleteUser, setDeleteUser] = useState(null);
     const [editUser, setEditUser] = useState(null);
     const [showUser, setShowUser] = useState(null);
+    const [showCreateModal, setShowCreateModal] = useState(false);
+
     const rows = users?.data ?? [];
 
     useEffect(() => {
@@ -165,13 +168,14 @@ export default function Index({ users, permissionCatalog = {}, roleDefaults = {}
                                     )}
                                 </button> */}
 
-                                <Link
-                                    href={route("users.create")}
+                                <button
+                                    onClick={() => setShowCreateModal(true)}
                                     className="inline-flex items-center justify-center gap-2 h-11 px-5 bg-[#1D6F42] text-white text-sm font-medium rounded-xl hover:bg-[#185c38] transition-all shadow-sm active:scale-[0.98]"
                                 >
                                     <PlusIcon className="w-5 h-5" />
                                     Add User
-                                </Link>
+                                </button>
+
                             </div>
                         </div>
 
@@ -433,6 +437,15 @@ export default function Index({ users, permissionCatalog = {}, roleDefaults = {}
                     }}
                 />
             )}
+
+            {showCreateModal && (
+                <CreateModal
+                    permissionCatalog={permissionCatalog}
+                    roleDefaults={roleDefaults}
+                    onClose={() => setShowCreateModal(false)}
+                />
+            )}
+
         </AdminLayout>
     );
 }

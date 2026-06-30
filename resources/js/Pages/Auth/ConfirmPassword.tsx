@@ -21,7 +21,7 @@ export default function ConfirmPassword() {
             <Head title="Confirm Password - SIPLAN" />
 
             {/* Background Image Full Screen - SAMA DENGAN HALAMAN LAIN */}
-            <div 
+            <div
                 className="auth-page min-h-screen flex items-center justify-center bg-cover bg-center bg-no-repeat relative"
                 style={{
                     backgroundImage: `url(${asset('images/coba.jpg')})`,
@@ -29,13 +29,13 @@ export default function ConfirmPassword() {
             >
                 {/* Overlay tipis */}
                 <div className="absolute inset-0 bg-black bg-opacity-20"></div>
-                
+
                 {/* Card Confirm Password */}
                 <div className="relative z-10 w-full max-w-md">
-                    
+
                     {/* Card dengan background putih semi transparan */}
                     <div className="bg-white/90 backdrop-blur-sm shadow-2xl rounded-2xl p-10 border border-white/20">
-                        
+
                         {/* LOGO - SAMA DENGAN HALAMAN LAIN */}
                         <div className="flex justify-between items-center mb-6">
                             <img
@@ -97,7 +97,7 @@ export default function ConfirmPassword() {
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
                                         </svg>
                                     </span>
-                                    
+
                                     <input
                                         id="password"
                                         type={showPassword ? 'text' : 'password'}
@@ -108,7 +108,7 @@ export default function ConfirmPassword() {
                                         autoFocus
                                         required
                                     />
-                                    
+
                                     {/* Tombol show/hide password */}
                                     <button
                                         type="button"

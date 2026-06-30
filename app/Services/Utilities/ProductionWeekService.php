@@ -82,7 +82,13 @@ class ProductionWeekService
             throw new \DomainException('Production week untuk bulan tersebut sudah ada.');
         }
 
-        [$startDate, $endDate, $totalWeeks] = $this->productionMonthRange((int) $data['year'], $monthNumber);
+        $startDate = isset($data['start_date']) && !empty($data['start_date']) ? Carbon::parse($data['start_date'])->startOfDay() : null;
+        $endDate = isset($data['end_date']) && !empty($data['end_date']) ? Carbon::parse($data['end_date'])->startOfDay() : null;
+        $totalWeeks = isset($data['num_weeks']) && !empty($data['num_weeks']) ? (int) $data['num_weeks'] : null;
+
+        if (!$startDate || !$endDate || !$totalWeeks) {
+            [$startDate, $endDate, $totalWeeks] = $this->productionMonthRange((int) $data['year'], $monthNumber);
+        }
 
         $this->ensureEndDateCoversWeeks($startDate, $endDate, $totalWeeks);
 
@@ -150,10 +156,16 @@ class ProductionWeekService
             return false;
         }
 
-        [$startDate, $endDate, $totalWeeks] = $this->productionMonthRange(
-            (int) $data['year'],
-            (int) $data['month_number']
-        );
+        $startDate = isset($data['start_date']) && !empty($data['start_date']) ? Carbon::parse($data['start_date'])->startOfDay() : null;
+        $endDate = isset($data['end_date']) && !empty($data['end_date']) ? Carbon::parse($data['end_date'])->startOfDay() : null;
+        $totalWeeks = isset($data['num_weeks']) && !empty($data['num_weeks']) ? (int) $data['num_weeks'] : null;
+
+        if (!$startDate || !$endDate || !$totalWeeks) {
+            [$startDate, $endDate, $totalWeeks] = $this->productionMonthRange(
+                (int) $data['year'],
+                (int) $data['month_number']
+            );
+        }
 
         $this->ensureEndDateCoversWeeks($startDate, $endDate, $totalWeeks);
         $this->ensureWeeksCanBeRemoved($weeks, $totalWeeks);

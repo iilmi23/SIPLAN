@@ -4,11 +4,8 @@ namespace App\Services\Variance;
 
 use App\Models\Variance\SrVarianceAnalytic;
 use App\Models\Variance\SrVarianceDashboardSummary;
-use App\Models\Variance\SrVarianceForecast;
-use App\Models\Variance\SrVarianceInsight;
-use App\Models\Variance\SrVarianceTrend;
+
 use App\Services\Variance\AnalyticsCacheService;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 
@@ -30,8 +27,7 @@ class VarianceAnalyticsService
             ],
             'top' => $this->cache->remember('top', $filters, fn () => $this->topAnalytics($filters)),
             'distribution' => $this->cache->remember('distribution', $filters, fn () => $this->distribution($filters), 20),
-            'forecasts' => $this->cache->remember('forecasts', $filters, fn () => $this->forecasts($filters)),
-            'insights' => $this->cache->remember('insights', $filters, fn () => $this->insights($filters)),
+
             'recent_activity' => $this->cache->remember('recent_activity', $filters, fn () => $this->recentActivity($filters), 5),
             'alerts' => $this->cache->remember('alerts', $filters, fn () => $this->alerts($filters), 5),
             'meta' => [
@@ -534,48 +530,6 @@ class VarianceAnalyticsService
             ->all();
     }
 
-    private function forecasts(array $filters): array
-    {
-        return SrVarianceForecast::query()
-            ->when($filters['customer_id'] ?? null, fn ($query, $id) => $query->where('customer_id', $id))
-            ->when($filters['assy_number'] ?? null, fn ($query, $assy) => $query->where('assy_number', 'like', "%{$assy}%"))
-            ->orderByDesc('generated_at')
-            ->limit(20)
-            ->get()
-            ->map(fn ($row) => [
-                'customer' => $row->customer_code,
-                'assy_number' => $row->assy_number,
-                'forecast_type' => $row->forecast_type,
-                'target_period' => $row->target_period,
-                'moving_average_qty' => (int) $row->moving_average_qty,
-                'projected_qty' => (int) $row->projected_qty,
-                'confidence_score' => (float) $row->confidence_score,
-            ])
-            ->values()
-            ->all();
-    }
-
-    private function insights(array $filters): array
-    {
-        return SrVarianceInsight::query()
-            ->when($filters['customer_id'] ?? null, fn ($query, $id) => $query->where('customer_id', $id))
-            ->when($filters['assy_number'] ?? null, fn ($query, $assy) => $query->where('assy_number', 'like', "%{$assy}%"))
-            ->orderByRaw("CASE severity WHEN 'critical' THEN 1 WHEN 'moderate' THEN 2 ELSE 3 END")
-            ->latest('generated_at')
-            ->limit(12)
-            ->get()
-            ->map(fn ($row) => [
-                'type' => $row->insight_type,
-                'severity' => $row->severity,
-                'title' => $row->title,
-                'message' => $row->message,
-                'assy_number' => $row->assy_number,
-                'customer' => $row->customer_code,
-            ])
-            ->values()
-            ->all();
-    }
-
     private function recentActivity(array $filters): array
     {
         return $this->filteredAnalyticsQuery($filters)
@@ -609,14 +563,7 @@ class VarianceAnalyticsService
         return $analyticsAlerts;
     }
 
-    private function trendQuery(array $filters): Builder
-    {
-        return SrVarianceTrend::query()
-            ->when($filters['customer_id'] ?? null, fn ($query, $id) => $query->where('customer_id', $id))
-            ->when($filters['assy_number'] ?? null, fn ($query, $assy) => $query->where('assy_number', 'like', "%{$assy}%"))
-            ->when($filters['year'] ?? null, fn ($query, $year) => $query->where('year', (int) $year))
-            ->when($filters['month_number'] ?? null, fn ($query, $month) => $query->where('month_number', (int) $month));
-    }
+
 
     private function activityRow(SrVarianceAnalytic $row): array
     {

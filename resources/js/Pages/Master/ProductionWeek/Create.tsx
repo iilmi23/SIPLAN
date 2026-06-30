@@ -202,7 +202,7 @@ export default function Create({ customers = [] }) {
                                             <input
                                                 type="date"
                                                 value={data.start_date}
-                                                readOnly
+                                                onChange={(e) => setData("start_date", e.target.value)}
                                                 className={inputCls(errors.start_date)}
                                             />
                                         </FormField>
@@ -216,7 +216,7 @@ export default function Create({ customers = [] }) {
                                             <input
                                                 type="date"
                                                 value={data.end_date}
-                                                readOnly
+                                                onChange={(e) => setData("end_date", e.target.value)}
                                                 className={inputCls(errors.end_date)}
                                             />
                                         </FormField>
@@ -227,11 +227,11 @@ export default function Create({ customers = [] }) {
                                                     <button
                                                         key={weekCount}
                                                         type="button"
-                                                        disabled
+                                                        onClick={() => setData("num_weeks", weekCount)}
                                                         className={`h-10 rounded-lg text-sm font-semibold border transition-all ${
                                                             Number(data.num_weeks) === weekCount
                                                                 ? "bg-[#1D6F42] text-white border-[#1D6F42]"
-                                                                : "bg-white text-gray-400 border-gray-200"
+                                                                : "bg-white text-gray-700 border-gray-200 hover:border-gray-300"
                                                         }`}
                                                     >
                                                         {weekCount}
